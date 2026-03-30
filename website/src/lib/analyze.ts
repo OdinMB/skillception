@@ -8,19 +8,21 @@ export function discardErrorRuns(results: RunResult[]): RunResult[] {
 }
 
 /**
- * Filter for runs judged by opus, grouped by executor model.
- * Returns a Map keyed by executor model name.
+ * Group runs by executor model, then by judge model within each executor.
+ * Returns a Map keyed by executor model name, each value being a Map
+ * keyed by judge model name.
  */
-export function filterOpusJudged(
+export function groupByExecutorAndJudge(
   results: RunResult[],
-): Map<string, RunResult[]> {
-  const map = new Map<string, RunResult[]>()
+): Map<string, Map<string, RunResult[]>> {
+  const map = new Map<string, Map<string, RunResult[]>>()
   for (const r of results) {
-    const judge = r.judge_model ?? r.model ?? 'opus'
-    if (judge !== 'opus') continue
     const executor = r.model ?? 'opus'
-    if (!map.has(executor)) map.set(executor, [])
-    map.get(executor)!.push(r)
+    const judge = r.judge_model ?? r.model ?? 'opus'
+    if (!map.has(executor)) map.set(executor, new Map())
+    const judgeMap = map.get(executor)!
+    if (!judgeMap.has(judge)) judgeMap.set(judge, [])
+    judgeMap.get(judge)!.push(r)
   }
   return map
 }
@@ -86,7 +88,7 @@ export function computeStats(runs: RunResult[]): GroupStats {
 /** Format a run's failure step as a human-readable string. */
 export function formatFailureStep(run: RunResult): string {
   if (!run.failure) return '\u2014'
-  const failedStep = run.steps[run.failure.step_index]
+  const failedStep = run.steps.find((s) => s.step_index === run.failure!.step_index)
   if (!failedStep) return `round ${run.failure.round}`
   if (failedStep.direction === 'ascent') {
     return `ascent to level ${failedStep.target_level}`

@@ -3,6 +3,13 @@ export interface JudgeResult {
   reasoning: string
 }
 
+export interface TokenUsage {
+  inputTokens: number
+  outputTokens: number
+  cacheReadInputTokens: number
+  cacheCreationInputTokens: number
+}
+
 export interface Step {
   step_index: number
   round: number
@@ -11,8 +18,8 @@ export interface Step {
   target_level: number
   passed: boolean
   expected_level: number
-  executor_tokens: number | null
-  judge_tokens: number | null
+  executor_usage: TokenUsage | null
+  judge_usage: TokenUsage | null
   judge_result: JudgeResult
 }
 
@@ -31,6 +38,7 @@ export interface RunResult {
   timestamp: string
   max_round: number
   total_steps: number
+  total_usage: TokenUsage | null
   steps: Step[]
   failure: Failure | null
 }

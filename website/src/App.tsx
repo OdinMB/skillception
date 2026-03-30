@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { RunResult, GroupStats } from "./types";
 import {
   discardErrorRuns,
-  filterOpusJudged,
+  groupByExecutorAndJudge,
   computeStats,
   pickFailureQuotes,
 } from "./lib/analyze";
@@ -18,12 +18,21 @@ const MODEL_LABELS: Record<string, string> = {
   haiku: "Haiku",
 };
 
-interface ModelData {
-  name: string;
-  label: string;
+interface JudgeVariant {
+  judgeName: string;
+  judgeLabel: string;
   runs: RunResult[];
   stats: GroupStats;
 }
+
+interface ModelData {
+  name: string;
+  label: string;
+  variants: JudgeVariant[];
+}
+
+/** Preferred judge display order: opus first (external), then self. */
+const JUDGE_ORDER = ["opus", "sonnet", "haiku"];
 
 function App() {
   const [models, setModels] = useState<ModelData[]>([]);
@@ -42,16 +51,30 @@ function App() {
       .then((data: RunResult[]) => {
         const clean = discardErrorRuns(data);
         setDiscarded(data.length - clean.length);
-        const byModel = filterOpusJudged(clean);
+        const byExecutorAndJudge = groupByExecutorAndJudge(clean);
         const modelData: ModelData[] = [];
-        for (const name of MODEL_ORDER) {
-          const runs = byModel.get(name) ?? [];
-          if (runs.length > 0) {
-            modelData.push({
-              name,
-              label: MODEL_LABELS[name] ?? name,
+        for (const executorName of MODEL_ORDER) {
+          const judgeMap = byExecutorAndJudge.get(executorName);
+          if (!judgeMap) continue;
+          const variants: JudgeVariant[] = [];
+          // Sort judges: opus first, then others in MODEL_ORDER
+          const judgeNames = [...judgeMap.keys()].sort(
+            (a, b) => JUDGE_ORDER.indexOf(a) - JUDGE_ORDER.indexOf(b),
+          );
+          for (const judgeName of judgeNames) {
+            const runs = judgeMap.get(judgeName)!;
+            variants.push({
+              judgeName,
+              judgeLabel: MODEL_LABELS[judgeName] ?? judgeName,
               runs,
               stats: computeStats(runs),
+            });
+          }
+          if (variants.length > 0) {
+            modelData.push({
+              name: executorName,
+              label: MODEL_LABELS[executorName] ?? executorName,
+              variants,
             });
           }
         }
@@ -97,14 +120,15 @@ function App() {
     );
   }
 
-  // Build round distribution bars per model
-  const allMaxRounds = models.flatMap((m) =>
-    Array.from(m.stats.roundDistribution.keys()),
+  // Collect all variants for global chart scaling
+  const allVariants = models.flatMap((m) => m.variants);
+  const allMaxRounds = allVariants.flatMap((v) =>
+    Array.from(v.stats.roundDistribution.keys()),
   );
   const globalMinRound = Math.min(...allMaxRounds, 0);
   const globalMaxRound = Math.max(...allMaxRounds, 0);
   const globalMaxCount = Math.max(
-    ...models.flatMap((m) => Array.from(m.stats.roundDistribution.values())),
+    ...allVariants.flatMap((v) => Array.from(v.stats.roundDistribution.values())),
     1,
   );
 
@@ -117,21 +141,39 @@ function App() {
     return bars;
   }
 
-  // Failure percentages
   function failPct(pass: number, total: number): string {
     if (total === 0) return "\u2014";
     const failRate = ((total - pass) / total) * 100;
     return failRate === 0 ? "0%" : `${failRate.toFixed(1)}%`;
   }
 
-  const activeRunModel = models[runTab];
+  function variantLabel(model: ModelData, variant: JudgeVariant): string {
+    if (model.name === variant.judgeName) {
+      return `${model.label} (self-judged)`;
+    }
+    return `${model.label} (judged by ${variant.judgeLabel})`;
+  }
+
+  // Build flat list of (model, variant) pairs for the run overview tabs
+  const runTabItems = models.flatMap((m) =>
+    m.variants.map((v) => ({ model: m, variant: v })),
+  );
+  const safeRunTab = runTab < runTabItems.length ? runTab : 0;
+  const activeRunItem = runTabItems[safeRunTab];
 
   return (
     <div className="page">
       <JournalHeader />
 
       <Abstract
-        models={models.map((m) => ({ name: m.label, stats: m.stats }))}
+        models={models.map((m) => ({
+          name: m.label,
+          variants: m.variants.map((v) => ({
+            judgeLabel: v.judgeLabel,
+            isSelfJudged: m.name === v.judgeName,
+            stats: v.stats,
+          })),
+        }))}
         discarded={discarded}
       />
 
@@ -141,40 +183,33 @@ function App() {
       </h2>
       <p>
         Figure 1 presents the distribution of maximum rounds reached by each
-        model tier, all judged blindly by Opus. Each round consists of an ascent
-        to a new peak meta-level followed by a full descent back to level 1.
+        model tier under different judge configurations. Each round consists of
+        an ascent to a new peak meta-level followed by a full descent back to
+        level 1.
       </p>
 
-      {models.map((m, i) => (
-        <div className="figure" key={m.name}>
-          <h3>
-            {m.label} (N={m.stats.totalRuns})
-          </h3>
-          <div className="figure-content">
-            <BarChart
-              bars={buildRoundBars(m.stats)}
-              maxValue={globalMaxCount}
-            />
-          </div>
-          {i === 0 && (
-            <div className="figure-caption">
-              <span className="fig-label">Figure 1:</span> Distribution of
-              maximum round reached by model tier. Each round adds one level
-              (round 1: level 1 &rarr; 2, round 9: level 9 &rarr; 10).
-              {models.length === 3 && (
-                <>
-                  {" "}
-                  Mean rounds &mdash;{" "}
-                  {models
-                    .map(
-                      (m2) => `${m2.label}: ${m2.stats.meanRound.toFixed(1)}`,
-                    )
-                    .join(", ")}
-                  .
-                </>
+      {models.map((m, mi) => (
+        <div key={m.name}>
+          {m.variants.map((v, vi) => (
+            <div className="figure" key={`${m.name}-${v.judgeName}`}>
+              <h3>
+                {variantLabel(m, v)} (N={v.stats.totalRuns})
+              </h3>
+              <div className="figure-content">
+                <BarChart
+                  bars={buildRoundBars(v.stats)}
+                  maxValue={globalMaxCount}
+                />
+              </div>
+              {mi === 0 && vi === 0 && (
+                <div className="figure-caption">
+                  <span className="fig-label">Figure 1:</span> Distribution of
+                  maximum round reached by model tier and judge. Each round adds
+                  one level (round 1: level 1 &rarr; 2, round 9: level 9 &rarr; 10).
+                </div>
               )}
             </div>
-          )}
+          ))}
         </div>
       ))}
 
@@ -183,10 +218,10 @@ function App() {
         <span className="section-number">2.</span> Failure Analysis
       </h2>
       <p>
-        Table 1 summarizes failure rates by direction. Ascent steps create a
-        skill at a higher meta-level; descent steps cascade back down to level
-        1. Failures occur when the blind judge detects a different meta-level
-        than the executor intended.
+        Table 1 summarizes failure rates by direction and judge configuration.
+        For each executor model, we compare performance when judged by Opus
+        versus self-judged, testing whether a model grades its own
+        meta-recursive output more leniently than an external evaluator.
       </p>
 
       <div className="figure">
@@ -194,7 +229,8 @@ function App() {
           <table>
             <thead>
               <tr>
-                <th>Model</th>
+                <th>Executor</th>
+                <th>Judge</th>
                 <th>Runs</th>
                 <th>Failures</th>
                 <th>Ascent Fail %</th>
@@ -202,49 +238,55 @@ function App() {
               </tr>
             </thead>
             <tbody>
-              {models.map((m) => (
-                <tr key={m.name}>
-                  <td>{m.label}</td>
-                  <td className="num">{m.stats.totalRuns}</td>
-                  <td className="num">{m.stats.failureCount}</td>
-                  <td className="num">
-                    {failPct(m.stats.ascentPass, m.stats.ascentTotal)}
-                  </td>
-                  <td className="num">
-                    {failPct(m.stats.descentPass, m.stats.descentTotal)}
-                  </td>
-                </tr>
-              ))}
+              {models.flatMap((m) =>
+                m.variants.map((v) => (
+                  <tr key={`${m.name}-${v.judgeName}`}>
+                    <td>{m.label}</td>
+                    <td>
+                      {m.name === v.judgeName
+                        ? <span style={{ fontStyle: "italic" }}>Self</span>
+                        : v.judgeLabel}
+                    </td>
+                    <td className="num">{v.stats.totalRuns}</td>
+                    <td className="num">{v.stats.failureCount}</td>
+                    <td className="num">
+                      {failPct(v.stats.ascentPass, v.stats.ascentTotal)}
+                    </td>
+                    <td className="num">
+                      {failPct(v.stats.descentPass, v.stats.descentTotal)}
+                    </td>
+                  </tr>
+                )),
+              )}
             </tbody>
           </table>
         </div>
         <div className="figure-caption">
-          <span className="fig-label">Table 1:</span> Failure rates by model and
-          step direction.
-          {models.find((m) => m.name === "opus")?.stats.failureCount === 0 && (
-            <>
-              {" "}
-              Opus completed all rounds without a single mismatch, which is
-              either impressive or suspicious.
-            </>
-          )}
+          <span className="fig-label">Table 1:</span> Failure rates by executor
+          model, judge, and step direction.
         </div>
       </div>
 
-      {/* Sample judge quotes for failed models */}
+      {/* Sample judge quotes for failed variants */}
       {models
-        .filter((m) => m.stats.failureCount > 0)
-        .map((m) => {
-          const quotes = pickFailureQuotes(m.runs, 2);
+        .flatMap((m) =>
+          m.variants
+            .filter((v) => v.stats.failureCount > 0)
+            .map((v) => ({ model: m, variant: v })),
+        )
+        .map(({ model: m, variant: v }) => {
+          const quotes = pickFailureQuotes(v.runs, 2);
           if (quotes.length === 0) return null;
           return (
-            <div key={m.name}>
-              <h3>{m.label}: sample judge reasoning</h3>
+            <div key={`${m.name}-${v.judgeName}`}>
+              <h3>
+                {variantLabel(m, v)}: sample judge reasoning
+              </h3>
               {quotes.map((q) => (
                 <div className="judge-quote" key={q.run.run_id}>
                   &ldquo;{q.reasoning}&rdquo;
                   <div className="attribution">
-                    &mdash; Judge, {q.description}
+                    &mdash; {v.judgeLabel} judge, {q.description}
                   </div>
                 </div>
               ))}
@@ -275,20 +317,24 @@ function App() {
       {runsOpen && (
         <>
           <div className="model-tabs">
-            {models.map((m, i) => (
+            {runTabItems.map((item, i) => (
               <button
-                key={m.name}
-                className={`model-tab ${i === runTab ? "active" : ""}`}
+                key={`${item.model.name}-${item.variant.judgeName}`}
+                className={`model-tab ${i === safeRunTab ? "active" : ""}`}
                 onClick={() => setRunTab(i)}
               >
-                {m.label} ({m.stats.totalRuns})
+                {item.model.label}
+                {item.model.name === item.variant.judgeName
+                  ? " (self)"
+                  : ` \u00d7 ${item.variant.judgeLabel}`}
+                {" "}({item.variant.stats.totalRuns})
               </button>
             ))}
           </div>
 
-          {activeRunModel && (
+          {activeRunItem && (
             <div style={{ marginTop: "16px" }}>
-              <RunOverview runs={activeRunModel.runs} />
+              <RunOverview runs={activeRunItem.variant.runs} />
             </div>
           )}
         </>
