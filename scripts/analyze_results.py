@@ -1,10 +1,10 @@
 """Analyze results from meta-skill experiment runs.
 
-Reads all JSON files in results/ and prints aggregate statistics.
+Reads result.json files from runs/ subdirectories and prints aggregate statistics.
 
 Usage:
     python scripts/analyze_results.py
-    python scripts/analyze_results.py --results-dir path/to/results
+    python scripts/analyze_results.py --runs-dir path/to/runs
 """
 
 import argparse
@@ -15,24 +15,22 @@ from collections import Counter
 from pathlib import Path
 
 
-def load_results(results_dir: Path) -> list[dict]:
-    """Load all result JSON files from the directory."""
+def load_results(runs_dir: Path) -> list[dict]:
+    """Load all result.json files from run subdirectories."""
     results = []
-    for f in sorted(results_dir.glob("*.json")):
-        if f.name == "analysis.json":
-            continue
+    for f in sorted(runs_dir.glob("*/result.json")):
         try:
             results.append(json.loads(f.read_text(encoding="utf-8")))
         except (json.JSONDecodeError, OSError) as e:
-            print(f"  Warning: skipping {f.name}: {e}", file=sys.stderr)
+            print(f"  Warning: skipping {f.parent.name}: {e}", file=sys.stderr)
     return results
 
 
-def analyze(results: list[dict]):
-    """Print aggregate statistics."""
+def analyze_group(results: list[dict], label: str):
+    """Print aggregate statistics for a group of results."""
     n = len(results)
     print(f"\n{'='*60}")
-    print(f"META-SKILL EXPERIMENT RESULTS ({n} runs)")
+    print(f"META-SKILL EXPERIMENT RESULTS — {label} ({n} runs)")
     print(f"{'='*60}")
 
     if n == 0:
@@ -48,8 +46,8 @@ def analyze(results: list[dict]):
         count = round_counts[level]
         bar = "#" * count
         pct = count / n * 100
-        label = f"Round {level}" if level >= 0 else "None (failed round 0)"
-        print(f"  {label:25s} | {bar:30s} {count:3d} ({pct:.0f}%)")
+        row_label = f"Round {level}" if level >= 0 else "None (failed round 0)"
+        print(f"  {row_label:25s} | {bar:30s} {count:3d} ({pct:.0f}%)")
 
     # Failure analysis
     failures = [r["failure"] for r in results if r["failure"] is not None]
@@ -148,17 +146,43 @@ def analyze(results: list[dict]):
 
 def main():
     parser = argparse.ArgumentParser(description="Analyze meta-skill experiment results")
-    parser.add_argument("--results-dir", type=Path,
-                        default=Path(__file__).resolve().parent.parent / "results",
-                        help="Path to results directory")
+    parser.add_argument("--runs-dir", type=Path,
+                        default=Path(__file__).resolve().parent.parent / "runs",
+                        help="Path to runs directory")
     args = parser.parse_args()
 
-    if not args.results_dir.exists():
-        print(f"ERROR: Results directory not found: {args.results_dir}", file=sys.stderr)
+    if not args.runs_dir.exists():
+        print(f"ERROR: Runs directory not found: {args.runs_dir}", file=sys.stderr)
         sys.exit(1)
 
-    results = load_results(args.results_dir)
-    analyze(results)
+    results = load_results(args.runs_dir)
+    error_runs = [r for r in results
+                  if r.get("failure") and r["failure"].get("detected_level") == -1]
+    clean_results = [r for r in results
+                     if not r.get("failure") or r["failure"].get("detected_level") != -1]
+    if error_runs:
+        print(f"Discarded {len(error_runs)} run(s) that ended due to executor/judge errors.")
+    analyze(clean_results)
+
+
+def analyze(results: list[dict]):
+    """Group results by executor model and judge model, then analyze each group."""
+    combos = sorted(set(
+        (r.get("model", "opus"), r.get("judge_model", r.get("model", "opus")))
+        for r in results
+    ))
+
+    if len(combos) <= 1:
+        executor, judge = combos[0] if combos else ("opus", "opus")
+        label = executor if executor == judge else f"executor={executor}, judge={judge}"
+        analyze_group(results, label)
+    else:
+        for executor, judge in combos:
+            group = [r for r in results
+                     if r.get("model", "opus") == executor
+                     and r.get("judge_model", r.get("model", "opus")) == judge]
+            label = f"executor={executor}, judge={judge}"
+            analyze_group(group, label)
 
 
 if __name__ == "__main__":
