@@ -3,7 +3,9 @@
     "allow": [
       "Bash(python scripts/run_experiment.py:*)",
       "Bash(python scripts/analyze_results.py)",
-      "Bash(python scripts/export_results.py)"
+      "Bash(python scripts/export_results.py)",
+      "Bash(python scripts/check_types_sync.py:*)",
+      "Bash(npx --prefix website tsc:*)"
     ]
   }
 }
