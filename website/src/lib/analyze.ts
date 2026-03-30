@@ -1,46 +1,34 @@
-import type { RunResult, ModelGroup, GroupStats, Step } from '../types'
+import type { RunResult, GroupStats } from '../types'
 
 /** Filter out runs that ended due to executor/judge errors (detected_level === -1). */
-export function discardErrorRuns(results: RunResult[]): {
-  clean: RunResult[]
-  discarded: number
-} {
-  const clean = results.filter(
+export function discardErrorRuns(results: RunResult[]): RunResult[] {
+  return results.filter(
     (r) => !r.failure || r.failure.detected_level !== -1,
   )
-  return { clean, discarded: results.length - clean.length }
 }
 
-/** Group results by executor model + judge model combination. */
-export function groupByModels(results: RunResult[]): ModelGroup[] {
+/**
+ * Filter for runs judged by opus, grouped by executor model.
+ * Returns a Map keyed by executor model name.
+ */
+export function filterOpusJudged(
+  results: RunResult[],
+): Map<string, RunResult[]> {
   const map = new Map<string, RunResult[]>()
-
   for (const r of results) {
-    const executor = r.model ?? 'opus'
     const judge = r.judge_model ?? r.model ?? 'opus'
-    const key = `${executor}|${judge}`
-    if (!map.has(key)) map.set(key, [])
-    map.get(key)!.push(r)
+    if (judge !== 'opus') continue
+    const executor = r.model ?? 'opus'
+    if (!map.has(executor)) map.set(executor, [])
+    map.get(executor)!.push(r)
   }
-
-  return Array.from(map.entries())
-    .map(([key, runs]) => {
-      const [executor, judge] = key.split('|')
-      const label =
-        executor === judge
-          ? executor
-          : `executor=${executor}, judge=${judge}`
-      return { executor, judge, label, runs }
-    })
-    .sort((a, b) => a.label.localeCompare(b.label))
+  return map
 }
 
-/** Compute aggregate statistics for a group of runs. */
-export function computeStats(group: ModelGroup): GroupStats {
-  const runs = group.runs
+/** Compute aggregate statistics for a list of runs. */
+export function computeStats(runs: RunResult[]): GroupStats {
   const n = runs.length
 
-  // Max round distribution
   const roundDistribution = new Map<number, number>()
   const maxRounds: number[] = []
   for (const r of runs) {
@@ -63,7 +51,6 @@ export function computeStats(group: ModelGroup): GroupStats {
       : sorted[Math.floor(sorted.length / 2)]
     : 0
 
-  // Direction pass rates
   let ascentPass = 0,
     ascentTotal = 0,
     descentPass = 0,
@@ -83,7 +70,6 @@ export function computeStats(group: ModelGroup): GroupStats {
   const failureCount = runs.filter((r) => r.failure !== null).length
 
   return {
-    group,
     totalRuns: n,
     roundDistribution,
     maxRound,
@@ -97,58 +83,41 @@ export function computeStats(group: ModelGroup): GroupStats {
   }
 }
 
-/** Get all steps across all runs in a group. */
-export function allSteps(runs: RunResult[]): Step[] {
-  return runs.flatMap((r) => r.steps)
+/** Format a run's failure step as a human-readable string. */
+export function formatFailureStep(run: RunResult): string {
+  if (!run.failure) return '\u2014'
+  const failedStep = run.steps[run.failure.step_index]
+  if (!failedStep) return `round ${run.failure.round}`
+  if (failedStep.direction === 'ascent') {
+    return `ascent to level ${failedStep.target_level}`
+  }
+  return `descent ${failedStep.source_level} \u2192 ${failedStep.target_level}`
 }
 
-/** Format a meta-level as SC^N notation. */
-export function levelName(level: number): string {
-  if (level === 0) return 'SC'
-  if (level === 1) return 'SCC'
-  if (level === 2) return 'SCCC'
-  return `SC\u{207F}` // fallback — components render superscripts directly
-}
+/**
+ * Pick diverse failure reasoning samples from a set of runs.
+ * Selects failures at different levels for variety.
+ */
+export function pickFailureQuotes(
+  runs: RunResult[],
+  count = 2,
+): { run: RunResult; reasoning: string; description: string }[] {
+  const failed = runs
+    .filter((r) => r.failure !== null)
+    .sort((a, b) => a.failure!.expected_level - b.failure!.expected_level)
 
-/** Build the full "Skill Creator Creator..." name for a level. */
-export function fullLevelName(level: number): string {
-  return 'Skill ' + 'Creator '.repeat(level + 1).trim()
-}
+  if (failed.length === 0) return []
 
-/** Pick interesting judge quotes from a run's steps. */
-export function pickJudgeQuotes(
-  run: RunResult,
-  maxQuotes = 3,
-): { step: Step; category: string }[] {
-  const quotes: { step: Step; category: string }[] = []
-  const steps = run.steps
-
-  // First step (early reasoning)
-  if (steps.length > 0 && steps[0].passed) {
-    quotes.push({ step: steps[0], category: 'Early rounds (clear reasoning)' })
+  // Pick evenly spaced samples for level diversity
+  const step = Math.max(1, Math.floor(failed.length / count))
+  const picks: { run: RunResult; reasoning: string; description: string }[] = []
+  for (let i = 0; i < failed.length && picks.length < count; i += step) {
+    const r = failed[i]
+    picks.push({
+      run: r,
+      reasoning: r.failure!.reasoning,
+      description: `Run ${r.run_id.slice(0, 8)}, ${formatFailureStep(r)} (expected level ${r.failure!.expected_level}, detected ${r.failure!.detected_level})`,
+    })
   }
-
-  // A mid-game step (around the middle, preferring one with longer reasoning)
-  const mid = Math.floor(steps.length / 2)
-  const midCandidates = steps.slice(
-    Math.max(1, mid - 2),
-    Math.min(steps.length - 1, mid + 3),
-  )
-  const midStep = midCandidates
-    .filter((s) => s.passed)
-    .sort((a, b) => b.judge_result.reasoning.length - a.judge_result.reasoning.length)[0]
-  if (midStep) {
-    quotes.push({ step: midStep, category: 'Mid-game (growing complexity)' })
-  }
-
-  // Last passed step or the failed step
-  const lastStep = steps[steps.length - 1]
-  if (lastStep && quotes.length < maxQuotes) {
-    const category = lastStep.passed
-      ? 'Deep water'
-      : 'Deep water (the breaking point)'
-    quotes.push({ step: lastStep, category })
-  }
-
-  return quotes
+  return picks
 }

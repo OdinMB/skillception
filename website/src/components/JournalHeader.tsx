@@ -1,10 +1,4 @@
-interface Props {
-  totalRuns: number
-  discardedRuns: number
-}
-
-export default function JournalHeader({ totalRuns, discardedRuns }: Props) {
-  const cleanRuns = totalRuns - discardedRuns
+export default function JournalHeader() {
   return (
     <div className="text-center mb-12">
       <div className="seal">
@@ -12,7 +6,7 @@ export default function JournalHeader({ totalRuns, discardedRuns }: Props) {
       </div>
       <div className="journal-name">Skillception</div>
       <div className="journal-meta">
-        Proceedings of the Department of Recursive Skill Studies &middot; Auto-generated from {cleanRuns} experimental runs
+        Proceedings of the Department of Recursive Skill Studies
       </div>
       <hr className="title-rule" />
       <div className="article-title">
@@ -23,10 +17,6 @@ export default function JournalHeader({ totalRuns, discardedRuns }: Props) {
       </div>
       <div className="article-authors">
         Claude et al.<sup className="fn" title="And also Claude. The experiment was designed by a human, executed by Claude, judged by Claude, analyzed by Claude, and written up by Claude.">1</sup>
-      </div>
-      <div className="article-date">
-        Auto-generated results page &middot; {cleanRuns} runs analyzed
-        {discardedRuns > 0 && <>, {discardedRuns} discarded (executor/judge errors)</>}
       </div>
       <hr className="title-rule" />
     </div>

@@ -1,55 +1,63 @@
 import { useState } from 'react'
 import type { RunResult } from '../types'
-import StepTrace from './StepTrace'
-import JudgeQuote from './JudgeQuote'
-import { pickJudgeQuotes } from '../lib/analyze'
+import { formatFailureStep } from '../lib/analyze'
 
 interface Props {
-  run: RunResult
+  runs: RunResult[]
 }
 
-export default function RunAccordion({ run }: Props) {
+function RunRow({ run }: { run: RunResult }) {
   const [open, setOpen] = useState(false)
   const peakLevel = Math.max(...run.steps.map((s) => s.target_level), 0)
-  const quotes = pickJudgeQuotes(run)
 
   return (
-    <div className={`run-detail ${open ? 'open' : ''}`}>
-      <div className="run-header" onClick={() => setOpen(!open)}>
-        <span className="run-id">{run.run_id.slice(0, 8)}</span>
-        <span className="run-summary">
-          {run.total_steps} steps &middot; peak level {peakLevel} &middot; round {run.max_round}
-        </span>
-        <span className={`run-result ${run.failure ? 'fail' : 'pass'}`}>
+    <>
+      <tr
+        className="cursor-pointer hover:bg-[var(--color-aged)]"
+        onClick={() => setOpen(!open)}
+      >
+        <td className="num">{run.run_id.slice(0, 8)}</td>
+        <td className="num">{peakLevel}</td>
+        <td>{run.failure ? formatFailureStep(run) : <span className="pass">&mdash;</span>}</td>
+        <td className={run.failure ? 'fail' : 'pass'}>
           {run.failure ? 'Failed' : 'Complete'}
-        </span>
-      </div>
-      <div className="run-body" style={{ display: open ? 'block' : 'none' }}>
-        <h3>Step Trace</h3>
-        <StepTrace steps={run.steps} />
-
-        {quotes.length > 0 && (
-          <>
-            <h3 className="!mt-6">Selected Judge Reasoning</h3>
-            {quotes.map((q) => (
-              <JudgeQuote key={q.step.step_index} step={q.step} category={q.category} />
-            ))}
-          </>
-        )}
-
-        {run.failure && (
-          <>
-            <h3 className="!mt-6">Failure Details</h3>
-            <p className="!text-sm">
-              Expected level {run.failure.expected_level}, detected level{' '}
-              {run.failure.detected_level}. Judge reasoning:
-            </p>
-            <div className="judge-quote">
+        </td>
+        <td style={{ width: '20px', color: 'var(--color-caption)', fontSize: '10px' }}>
+          {open ? '\u25BC' : '\u25B6'}
+        </td>
+      </tr>
+      {open && run.failure && (
+        <tr>
+          <td colSpan={5} style={{ padding: '0 12px 12px' }}>
+            <div className="judge-quote" style={{ margin: '8px 0 0' }}>
               &ldquo;{run.failure.reasoning}&rdquo;
             </div>
-          </>
-        )}
-      </div>
-    </div>
+          </td>
+        </tr>
+      )}
+    </>
+  )
+}
+
+export default function RunOverview({ runs }: Props) {
+  const sorted = [...runs].sort((a, b) => b.max_round - a.max_round)
+
+  return (
+    <table>
+      <thead>
+        <tr>
+          <th>Run ID</th>
+          <th>Peak Level</th>
+          <th>Failure Step</th>
+          <th>Result</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {sorted.map((run) => (
+          <RunRow key={run.run_id} run={run} />
+        ))}
+      </tbody>
+    </table>
   )
 }

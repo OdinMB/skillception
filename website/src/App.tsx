@@ -1,17 +1,30 @@
 import { useEffect, useState } from 'react'
-import type { RunResult, GroupStats, ModelGroup } from './types'
-import { discardErrorRuns, groupByModels, computeStats } from './lib/analyze'
+import type { RunResult, GroupStats } from './types'
+import { discardErrorRuns, filterOpusJudged, computeStats, pickFailureQuotes } from './lib/analyze'
 import JournalHeader from './components/JournalHeader'
 import Abstract from './components/Abstract'
-import SummaryTable from './components/SummaryTable'
 import BarChart from './components/BarChart'
-import RunAccordion from './components/RunAccordion'
+import RunOverview from './components/RunAccordion'
+
+const MODEL_ORDER = ['opus', 'sonnet', 'haiku'] as const
+const MODEL_LABELS: Record<string, string> = {
+  opus: 'Opus',
+  sonnet: 'Sonnet',
+  haiku: 'Haiku',
+}
+
+interface ModelData {
+  name: string
+  label: string
+  runs: RunResult[]
+  stats: GroupStats
+}
 
 function App() {
-  const [allResults, setAllResults] = useState<RunResult[]>([])
+  const [models, setModels] = useState<ModelData[]>([])
   const [discarded, setDiscarded] = useState(0)
-  const [groups, setGroups] = useState<{ group: ModelGroup; stats: GroupStats }[]>([])
-  const [activeGroup, setActiveGroup] = useState(0)
+  const [runTab, setRunTab] = useState(0)
+  const [runsOpen, setRunsOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -22,11 +35,22 @@ function App() {
         return r.json()
       })
       .then((data: RunResult[]) => {
-        const { clean, discarded: d } = discardErrorRuns(data)
-        setAllResults(data)
-        setDiscarded(d)
-        const modelGroups = groupByModels(clean)
-        setGroups(modelGroups.map((g) => ({ group: g, stats: computeStats(g) })))
+        const clean = discardErrorRuns(data)
+        setDiscarded(data.length - clean.length)
+        const byModel = filterOpusJudged(clean)
+        const modelData: ModelData[] = []
+        for (const name of MODEL_ORDER) {
+          const runs = byModel.get(name) ?? []
+          if (runs.length > 0) {
+            modelData.push({
+              name,
+              label: MODEL_LABELS[name] ?? name,
+              runs,
+              stats: computeStats(runs),
+            })
+          }
+        }
+        setModels(modelData)
         setLoading(false)
       })
       .catch((e) => {
@@ -56,160 +80,181 @@ function App() {
     )
   }
 
-  const current = groups[activeGroup]
-  if (!current) return null
+  // Build round distribution bars per model
+  const allMaxRounds = models.flatMap((m) =>
+    Array.from(m.stats.roundDistribution.keys()),
+  )
+  const globalMinRound = Math.min(...allMaxRounds, 0)
+  const globalMaxRound = Math.max(...allMaxRounds, 0)
+  const globalMaxCount = Math.max(
+    ...models.flatMap((m) => Array.from(m.stats.roundDistribution.values())),
+    1,
+  )
 
-  const { stats } = current
-  const runs = current.group.runs
-
-  // Build round distribution bars
-  const maxRoundValue = Math.max(...Array.from(stats.roundDistribution.values()), 1)
-  const allRoundKeys = Array.from(stats.roundDistribution.keys()).sort((a, b) => a - b)
-  const minRound = Math.min(...allRoundKeys, 0)
-  const maxRound = Math.max(...allRoundKeys, 0)
-  const roundBars = []
-  for (let r = minRound; r <= maxRound; r++) {
-    const count = stats.roundDistribution.get(r) ?? 0
-    roundBars.push({
-      label: `Round ${r}`,
-      value: count,
-      color: (count > 0 ? (r === maxRound ? 'blue' : 'red') : 'red') as 'red' | 'blue' | 'green',
-    })
+  function buildRoundBars(stats: GroupStats) {
+    const bars = []
+    for (let r = globalMinRound; r <= globalMaxRound; r++) {
+      const count = stats.roundDistribution.get(r) ?? 0
+      bars.push({ label: `Round ${r}`, value: count })
+    }
+    return bars
   }
 
-  // Build direction pass rate bars
-  const directionBars = [
-    {
-      label: 'Ascent',
-      value: stats.ascentTotal > 0 ? (stats.ascentPass / stats.ascentTotal) * 100 : 0,
-      display: `${stats.ascentPass}/${stats.ascentTotal}`,
-      color: 'green' as const,
-    },
-    {
-      label: 'Descent',
-      value: stats.descentTotal > 0 ? (stats.descentPass / stats.descentTotal) * 100 : 0,
-      display: `${stats.descentPass}/${stats.descentTotal}`,
-      color: 'green' as const,
-    },
-  ]
+  // Failure percentages
+  function failPct(pass: number, total: number): string {
+    if (total === 0) return '\u2014'
+    const failRate = ((total - pass) / total) * 100
+    return failRate === 0 ? '0%' : `${failRate.toFixed(1)}%`
+  }
 
-  // Sort runs by max_round descending for the accordion
-  const sortedRuns = [...runs].sort((a, b) => b.max_round - a.max_round)
-
-  // Find the best run for the featured step trace
-  const bestRun = sortedRuns[0]
+  const activeRunModel = models[runTab]
 
   return (
     <div className="page">
-      <JournalHeader totalRuns={allResults.length} discardedRuns={discarded} />
+      <JournalHeader />
 
-      <Abstract groups={groups.map((g) => g.stats)} totalRuns={runs.length} />
+      <Abstract
+        models={models.map((m) => ({ name: m.label, stats: m.stats }))}
+        discarded={discarded}
+      />
 
-      {/* Model group tabs */}
-      {groups.length > 1 && (
-        <div className="model-tabs">
-          {groups.map((g, i) => (
-            <button
-              key={g.group.label}
-              className={`model-tab ${i === activeGroup ? 'active' : ''}`}
-              onClick={() => setActiveGroup(i)}
-            >
-              {g.group.label}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Section 1: Results */}
-      <h2><span className="section-number">1.</span> Results</h2>
+      {/* Section 1: Round Distributions */}
+      <h2><span className="section-number">1.</span> Round Distributions</h2>
       <p>
-        Table 1 summarizes the {runs.length} experimental run{runs.length !== 1 && 's'} conducted
-        {groups.length > 1 && <> for <strong>{current.group.label}</strong></>}.
-        {stats.failureCount > 0
-          ? <> {stats.failureCount} run{stats.failureCount !== 1 && 's'} encountered
-            failure conditions before completing all rounds.<sup className="fn" title="We use 'failure conditions' in the technical sense, not the existential one.">2</sup></>
-          : <> All runs completed successfully, which is either impressive or suspicious.</>
-        }
+        Figure 1 presents the distribution of maximum rounds reached by each model tier,
+        all judged blindly by Opus. Each round consists of an ascent to a new peak meta-level
+        followed by a full descent back to level 0.
+      </p>
+
+      {models.map((m, i) => (
+        <div className="figure" key={m.name}>
+          <h3>{m.label} (N={m.stats.totalRuns})</h3>
+          <div className="figure-content">
+            <BarChart bars={buildRoundBars(m.stats)} maxValue={globalMaxCount} />
+          </div>
+          {i === 0 && (
+            <div className="figure-caption">
+              <span className="fig-label">Figure 1:</span> Distribution of maximum round reached
+              by model tier. Round N means the model successfully completed N full
+              ascent-and-descent cycles.
+              {models.length === 3 && (
+                <> Mean rounds &mdash; {models.map((m2) =>
+                  `${m2.label}: ${m2.stats.meanRound.toFixed(1)}`
+                ).join(', ')}.</>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+
+      {/* Section 2: Failure Analysis */}
+      <h2><span className="section-number">2.</span> Failure Analysis</h2>
+      <p>
+        Table 1 summarizes failure rates by direction. Ascent steps create a skill at a higher
+        meta-level; descent steps cascade back down to level 0. Failures occur when the blind
+        judge detects a different meta-level than the executor intended.
       </p>
 
       <div className="figure">
         <div className="figure-content">
-          <SummaryTable runs={runs} />
+          <table>
+            <thead>
+              <tr>
+                <th>Model</th>
+                <th>Runs</th>
+                <th>Failures</th>
+                <th>Ascent Fail %</th>
+                <th>Descent Fail %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {models.map((m) => (
+                <tr key={m.name}>
+                  <td>{m.label}</td>
+                  <td className="num">{m.stats.totalRuns}</td>
+                  <td className="num">{m.stats.failureCount}</td>
+                  <td className="num">{failPct(m.stats.ascentPass, m.stats.ascentTotal)}</td>
+                  <td className="num">{failPct(m.stats.descentPass, m.stats.descentTotal)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
         <div className="figure-caption">
-          <span className="fig-label">Table 1:</span> Summary of experimental runs
-          ({current.group.label}).
-          {stats.maxRound > 3 && (
-            <> The peak meta-level reached was {stats.maxRound + 2} &mdash; a &ldquo;Skill{' '}
-            {'Creator '.repeat(stats.maxRound + 2).trim()}&rdquo;.{' '}
-            <em>We counted the &ldquo;Creator&rdquo;s {stats.maxRound + 2 > 4 ? 'three times to be sure' : 'twice to be sure'}.</em></>
+          <span className="fig-label">Table 1:</span> Failure rates by model and step direction.
+          {models.find((m) => m.name === 'opus')?.stats.failureCount === 0 && (
+            <> Opus completed all rounds without a single mismatch, which is either
+            impressive or suspicious.</>
           )}
         </div>
       </div>
 
-      {/* Section 2: Round Distribution */}
-      <h2><span className="section-number">2.</span> Round Distribution</h2>
-      <p>
-        Figure 1 presents the distribution of maximum rounds reached.
-        {runs.length <= 3
-          ? <> With a sample size of {runs.length}, we acknowledge this is less a distribution
-            and more of {runs.length === 1 ? 'a lonely data point' : runs.length === 2 ? 'a pair of data points making meaningful eye contact across a chart' : 'a small gathering of data points'}.</>
-          : <> The distribution across {runs.length} runs provides a
-            {runs.length < 10 ? ' modest but' : ''} meaningful sample.</>
-        }
-      </p>
+      {/* Sample judge quotes for failed models */}
+      {models.filter((m) => m.stats.failureCount > 0).map((m) => {
+        const quotes = pickFailureQuotes(m.runs, 2)
+        if (quotes.length === 0) return null
+        return (
+          <div key={m.name}>
+            <h3>{m.label}: sample judge reasoning</h3>
+            {quotes.map((q) => (
+              <div className="judge-quote" key={q.run.run_id}>
+                &ldquo;{q.reasoning}&rdquo;
+                <div className="attribution">
+                  &mdash; Judge, {q.description}
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      })}
 
-      <div className="figure">
-        <div className="figure-content">
-          <BarChart bars={roundBars} maxValue={maxRoundValue} />
-        </div>
-        <div className="figure-caption">
-          <span className="fig-label">Figure 1:</span> Distribution of maximum round reached
-          across experimental runs (N={runs.length}).
-          {' '}Mean: {stats.meanRound.toFixed(1)}, Median: {stats.medianRound.toFixed(1)}.
-        </div>
-      </div>
+      {/* Section 3: Run Overview */}
+      <h2><span className="section-number">3.</span> Run Overview</h2>
 
-      {/* Section 3: Step-Level Analysis */}
-      <h2><span className="section-number">3.</span> Step-Level Analysis</h2>
-      <p>
-        Figure 2 shows the pass rate by direction. Ascent steps (creating a skill at a higher
-        meta-level than the source) and descent steps (cascading back down to level 0) exhibited
-        different failure characteristics.
-      </p>
-
-      <div className="figure">
-        <div className="figure-content">
-          <BarChart bars={directionBars} maxValue={100} />
-        </div>
-        <div className="figure-caption">
-          <span className="fig-label">Figure 2:</span> Pass rate by step direction.
-          {stats.ascentPass === stats.ascentTotal && stats.ascentTotal > 0
-            ? <> Ascent maintained a perfect record.</>
-            : <> Ascent passed {stats.ascentPass} of {stats.ascentTotal} steps.</>
-          }
-          {' '}Descent passed {stats.descentPass} of {stats.descentTotal} steps.
+      <div
+        className="run-detail"
+        style={{ cursor: 'pointer' }}
+      >
+        <div
+          className="run-header"
+          onClick={() => setRunsOpen(!runsOpen)}
+          style={{ justifyContent: 'center', gap: '8px' }}
+        >
+          <span style={{ color: 'var(--color-footnote)' }}>
+            {runsOpen ? 'Collapse' : 'Expand'} individual run details
+          </span>
+          <span style={{ fontSize: '10px', color: 'var(--color-caption)' }}>
+            {runsOpen ? '\u25BC' : '\u25B6'}
+          </span>
         </div>
       </div>
 
-      {/* Section 4: Featured Run Trace */}
-      {bestRun && (
+      {runsOpen && (
         <>
-          <h2><span className="section-number">4.</span> Detailed Run Traces</h2>
-          <p>
-            Each run can be expanded below to reveal its full step trace and selected judge
-            reasoning. Runs are sorted by maximum round reached, descending.
-          </p>
-          {sortedRuns.map((run) => (
-            <RunAccordion key={run.run_id} run={run} />
-          ))}
+          <div className="model-tabs">
+            {models.map((m, i) => (
+              <button
+                key={m.name}
+                className={`model-tab ${i === runTab ? 'active' : ''}`}
+                onClick={() => setRunTab(i)}
+              >
+                {m.label} ({m.stats.totalRuns})
+              </button>
+            ))}
+          </div>
+
+          {activeRunModel && (
+            <div style={{ marginTop: '16px' }}>
+              <RunOverview runs={activeRunModel.runs} />
+            </div>
+          )}
         </>
       )}
 
       <hr className="thin-rule" />
 
-      {/* Section 5: References */}
-      <h2><span className="section-number">5.</span> References</h2>
+      {/* References */}
+      <h2><span className="section-number">4.</span> References</h2>
       <div className="references">
         <ol>
           <li>Hofstadter, D. R. (1979). <span className="ref-title">G&ouml;del, Escher, Bach: An Eternal Golden Braid.</span> Basic Books. Still the only book most people cite when they want to sound smart about recursion.</li>
@@ -224,7 +269,6 @@ function App() {
       {/* Footnotes */}
       <div className="footnote">
         <p><sup>1</sup> And also Claude. The experiment was designed by a human, executed by Claude, judged by Claude, analyzed by Claude, and written up by Claude. The human&rsquo;s contribution was typing <code>python scripts/run_experiment.py</code> and then going to make coffee.</p>
-        <p><sup>2</sup> We use &ldquo;failure conditions&rdquo; in the technical sense, not the existential one, though at higher meta-levels the distinction becomes academic.</p>
       </div>
     </div>
   )

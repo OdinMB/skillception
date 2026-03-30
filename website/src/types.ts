@@ -35,15 +35,7 @@ export interface RunResult {
   failure: Failure | null
 }
 
-export interface ModelGroup {
-  executor: string
-  judge: string
-  label: string
-  runs: RunResult[]
-}
-
 export interface GroupStats {
-  group: ModelGroup
   totalRuns: number
   roundDistribution: Map<number, number>
   maxRound: number
