@@ -1,5 +1,6 @@
+// --- BEGIN GENERATED TYPES (do not edit manually — see scripts/result_schema.py) ---
 export interface JudgeResult {
-  detected_level: number
+  detected_level: number | null
   reasoning: string
 }
 
@@ -27,8 +28,9 @@ export interface Failure {
   round: number
   step_index: number
   expected_level: number
-  detected_level: number
+  detected_level: number | null
   reasoning: string
+  error?: false | 'call' | 'parse'
 }
 
 export interface RunResult {
@@ -42,6 +44,7 @@ export interface RunResult {
   steps: Step[]
   failure: Failure | null
 }
+// --- END GENERATED TYPES ---
 
 export interface GroupStats {
   totalRuns: number

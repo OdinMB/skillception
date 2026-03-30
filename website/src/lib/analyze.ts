@@ -1,10 +1,12 @@
 import type { RunResult, GroupStats } from '../types'
 
-/** Filter out runs that ended due to executor/judge errors (detected_level === -1). */
+/** Filter out runs that ended due to executor/judge errors. */
 export function discardErrorRuns(results: RunResult[]): RunResult[] {
-  return results.filter(
-    (r) => !r.failure || r.failure.detected_level !== -1,
-  )
+  return results.filter((r) => {
+    if (!r.failure) return true
+    // error is "call" | "parse" for technical failures, false for legitimate mismatches
+    return r.failure.error === false || r.failure.error === undefined
+  })
 }
 
 /**
@@ -118,7 +120,7 @@ export function pickFailureQuotes(
     picks.push({
       run: r,
       reasoning: r.failure!.reasoning,
-      description: `Run ${r.run_id.slice(0, 8)}, ${formatFailureStep(r)} (expected level ${r.failure!.expected_level}, detected ${r.failure!.detected_level})`,
+      description: `Run ${r.run_id.slice(0, 8)}, ${formatFailureStep(r)} (expected level ${r.failure!.expected_level}, detected ${r.failure!.detected_level === null ? (typeof r.failure!.error === 'string' ? r.failure!.error + ' error' : 'error') : r.failure!.detected_level})`,
     })
   }
   return picks

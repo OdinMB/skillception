@@ -125,8 +125,8 @@ function App() {
   const allMaxRounds = allVariants.flatMap((v) =>
     Array.from(v.stats.roundDistribution.keys()),
   );
-  const globalMinRound = Math.min(...allMaxRounds, 0);
-  const globalMaxRound = Math.max(...allMaxRounds, 0);
+  const globalMinRound = allMaxRounds.length > 0 ? Math.min(...allMaxRounds) : 1;
+  const globalMaxRound = allMaxRounds.length > 0 ? Math.max(...allMaxRounds) : 1;
   const globalMaxCount = Math.max(
     ...allVariants.flatMap((v) => Array.from(v.stats.roundDistribution.values())),
     1,
