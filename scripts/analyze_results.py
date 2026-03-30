@@ -14,15 +14,27 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+try:
+    from scripts.result_schema import validate_result
+except ImportError:
+    from result_schema import validate_result
+
 
 def load_results(runs_dir: Path) -> list[dict]:
     """Load all result.json files from run subdirectories."""
     results = []
     for f in sorted(runs_dir.glob("*/result.json")):
         try:
-            results.append(json.loads(f.read_text(encoding="utf-8")))
+            data = json.loads(f.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError) as e:
             print(f"  Warning: skipping {f.parent.name}: {e}", file=sys.stderr)
+            continue
+        schema_errors = validate_result(data)
+        if schema_errors:
+            print(f"  Warning: {f.parent.name} failed schema validation:", file=sys.stderr)
+            for err in schema_errors:
+                print(f"    - {err}", file=sys.stderr)
+        results.append(data)
     return results
 
 
@@ -110,7 +122,7 @@ def analyze_group(results: list[dict], label: str):
 
     # Level mismatch patterns
     mismatches = [(f["expected_level"], f["detected_level"]) for f in failures
-                  if f["detected_level"] != -1]
+                  if f["detected_level"] is not None]
     if mismatches:
         mismatch_counts = Counter(mismatches)
         print(f"\n## Level Mismatch Patterns (expected → detected)\n")
@@ -118,8 +130,9 @@ def analyze_group(results: list[dict], label: str):
             print(f"  Level {exp} → Level {det}: {count} times")
 
     # Failure modes
-    error_failures = [f for f in failures if f["detected_level"] == -1]
-    mismatch_failures = [f for f in failures if f["detected_level"] != -1]
+    error_failures = [f for f in failures
+                      if isinstance(f.get("error"), str)]
+    mismatch_failures = [f for f in failures if f not in error_failures]
     print(f"\n## Failure Modes\n")
     print(f"  Level mismatch:  {len(mismatch_failures)}")
     print(f"  Executor/judge error: {len(error_failures)}")
@@ -157,10 +170,15 @@ def main():
         sys.exit(1)
 
     results = load_results(args.runs_dir)
-    error_runs = [r for r in results
-                  if r.get("failure") and r["failure"].get("detected_level") == -1]
-    clean_results = [r for r in results
-                     if not r.get("failure") or r["failure"].get("detected_level") != -1]
+    def is_error_run(r: dict) -> bool:
+        f = r.get("failure")
+        if not f:
+            return False
+        # error is "call" | "parse" for technical failures, false for legitimate mismatches
+        return isinstance(f.get("error"), str)
+
+    error_runs = [r for r in results if is_error_run(r)]
+    clean_results = [r for r in results if not is_error_run(r)]
     if error_runs:
         print(f"Discarded {len(error_runs)} run(s) that ended due to executor/judge errors.")
     analyze(clean_results)

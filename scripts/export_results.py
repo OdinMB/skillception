@@ -13,6 +13,11 @@ import json
 import sys
 from pathlib import Path
 
+try:
+    from scripts.result_schema import validate_result
+except ImportError:
+    from result_schema import validate_result
+
 
 def load_and_clean(runs_dir: Path) -> list[dict]:
     """Load all result.json files, stripping local file paths."""
@@ -23,6 +28,13 @@ def load_and_clean(runs_dir: Path) -> list[dict]:
         except (json.JSONDecodeError, OSError) as e:
             print(f"  Warning: skipping {f.parent.name}: {e}", file=sys.stderr)
             continue
+
+        # Validate before stripping paths
+        schema_errors = validate_result(data)
+        if schema_errors:
+            print(f"  Warning: {f.parent.name} failed schema validation:", file=sys.stderr)
+            for err in schema_errors:
+                print(f"    - {err}", file=sys.stderr)
 
         # Strip file paths from steps (contain local machine info)
         for step in data.get("steps", []):
