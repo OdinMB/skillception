@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(python scripts/run_experiment.py:*)",
-      "Bash(python scripts/analyze_results.py)"
+      "Bash(python scripts/analyze_results.py)",
+      "Bash(python scripts/export_results.py)"
     ]
   }
 }

@@ -10,12 +10,35 @@ This is a humor project. The README is written in a dry, self-aware comedic voic
 
 The harness runs a recursive loop where each step calls `claude -p` twice: once for an **executor** (generates a SKILL.md) and once for a **judge** (blindly evaluates what meta-level that SKILL.md targets). A run proceeds in rounds of ascending meta-level then cascading back down, stopping on the first mismatch between expected and detected level.
 
+## Website
+
+Results website in `website/` — React/TypeScript/Vite/Tailwind. Displays experiment results dynamically from `runs/` data.
+
+### Website commands (from repo root)
+
+```bash
+npm run website:dev          # Vite dev server
+npm run website:build        # TypeScript check + production build
+npm run website:typecheck    # TypeScript only
+npm run website:lint         # ESLint
+npm run website:test         # Vitest
+npm run website:export-data  # Regenerate website/public/results.json from runs/
+```
+
+### Data flow
+
+1. `scripts/export_results.py` reads `runs/*/result.json` and writes `website/public/results.json`
+2. Run `npm run website:export-data` after new experiment runs to update the website data
+3. The React app fetches `results.json` at runtime and computes statistics client-side
+
 ## Key files
 
 - `agents/executor.md` — prompt template interpolated into executor's `claude -p` call. Not a registered Claude Code agent — plain Markdown read by the Python harness.
 - `agents/judge.md` — prompt template for the judge. Same pattern.
 - `scripts/run_experiment.py` — main harness. Orchestrates `claude -p` subprocess calls, manages the round-based loop, logs results as JSON.
 - `scripts/analyze_results.py` — reads result JSONs from `runs/`, prints aggregate statistics.
+- `scripts/export_results.py` — exports cleaned result JSONs for the website.
+- `website/` — React/TS/Vite/Tailwind results website.
 
 ## Architecture decisions
 

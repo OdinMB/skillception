@@ -1,0 +1,497 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #2c2c2c;
+  --color-red: #8b0000;
+  --color-blue: #1a5276;
+  --color-green: #4a6741;
+  --color-amber: #b8860b;
+  --color-paper: #fefcf5;
+  --color-aged: #f5f0e8;
+  --color-footnote: #666666;
+  --color-caption: #999999;
+  --color-rule: #d4cfc4;
+
+  --font-serif: 'Source Serif 4', Georgia, serif;
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-sans: 'Source Sans 3', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--font-serif);
+  background: var(--color-aged);
+  color: var(--color-ink);
+  line-height: 1.7;
+  font-size: 16px;
+}
+
+/* === Journal article layout === */
+.page {
+  max-width: 720px;
+  margin: 0 auto;
+  background: var(--color-paper);
+  min-height: 100vh;
+  padding: 60px 72px 80px;
+  box-shadow: 0 0 40px rgba(0,0,0,0.06);
+}
+
+@media (max-width: 800px) {
+  .page { padding: 32px 24px 48px; }
+}
+
+/* === Typography === */
+.journal-name {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 14px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--color-red);
+  margin-bottom: 4px;
+}
+
+.journal-meta {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--color-caption);
+  margin-bottom: 24px;
+}
+
+.article-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 32px;
+  line-height: 1.2;
+  color: var(--color-ink);
+  margin-bottom: 12px;
+}
+
+.article-subtitle {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 18px;
+  color: var(--color-footnote);
+  margin-bottom: 16px;
+}
+
+.article-authors {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--color-footnote);
+  margin-bottom: 8px;
+}
+
+.article-date {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--color-caption);
+}
+
+hr.title-rule {
+  border: none;
+  border-top: 2px solid var(--color-ink);
+  margin: 24px 0;
+}
+
+hr.thin-rule {
+  border: none;
+  border-top: 1px solid var(--color-rule);
+  margin: 32px 0;
+}
+
+/* === Seal === */
+.seal {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 16px;
+  opacity: 0.85;
+}
+
+.seal img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* === Abstract === */
+.abstract {
+  background: var(--color-aged);
+  border-left: 3px solid var(--color-red);
+  padding: 16px 20px;
+  margin: 32px 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.abstract-label {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--color-red);
+  margin-bottom: 8px;
+}
+
+/* === Section headings === */
+h2 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 22px;
+  color: var(--color-ink);
+  margin: 40px 0 16px;
+}
+
+h2 .section-number {
+  color: var(--color-red);
+  margin-right: 8px;
+}
+
+h3 {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--color-footnote);
+  margin: 28px 0 12px;
+}
+
+p {
+  margin-bottom: 16px;
+  text-align: justify;
+  hyphens: auto;
+}
+
+/* === Footnotes === */
+sup.fn {
+  color: var(--color-red);
+  font-size: 11px;
+  cursor: help;
+  font-family: var(--font-sans);
+}
+
+.footnote {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--color-footnote);
+  border-top: 1px solid var(--color-rule);
+  padding-top: 12px;
+  margin-top: 40px;
+}
+
+.footnote p {
+  text-align: left;
+  margin-bottom: 4px;
+  text-indent: 0;
+}
+
+.footnote sup {
+  color: var(--color-red);
+  font-size: 10px;
+  margin-right: 4px;
+}
+
+/* === Figures === */
+.figure {
+  margin: 32px 0;
+  padding: 20px;
+  background: var(--color-paper);
+  border: 1px solid var(--color-rule);
+}
+
+.figure-content {
+  margin-bottom: 12px;
+}
+
+.figure-caption {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--color-footnote);
+  line-height: 1.5;
+}
+
+.figure-caption .fig-label {
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.figure-caption em {
+  font-style: italic;
+  color: var(--color-caption);
+}
+
+/* === Tables === */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  margin: 8px 0;
+}
+
+thead th {
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--color-footnote);
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 2px solid var(--color-ink);
+}
+
+tbody td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-rule);
+  vertical-align: top;
+}
+
+tbody tr:last-child td {
+  border-bottom: 2px solid var(--color-ink);
+}
+
+td.num {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  text-align: right;
+}
+
+td.pass {
+  color: var(--color-green);
+  font-weight: 600;
+}
+
+td.fail {
+  color: var(--color-red);
+  font-weight: 600;
+}
+
+/* === Bar chart === */
+.bar-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bar-label {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--color-footnote);
+  width: 72px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.bar-track {
+  flex: 1;
+  height: 20px;
+  background: var(--color-aged);
+  position: relative;
+}
+
+.bar-fill {
+  height: 100%;
+  background: var(--color-red);
+  transition: width 0.5s;
+}
+
+.bar-fill.accent { background: var(--color-blue); }
+.bar-fill.green { background: var(--color-green); }
+
+.bar-value {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-footnote);
+  width: 48px;
+  flex-shrink: 0;
+}
+
+/* === Step trace === */
+.step-trace {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.8;
+  overflow-x: auto;
+}
+
+.step-trace .step {
+  display: flex;
+  gap: 12px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.step-trace .step:last-child {
+  border-bottom: none;
+}
+
+.step-trace .step-idx {
+  color: var(--color-caption);
+  width: 24px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.step-trace .step-dir {
+  width: 56px;
+  flex-shrink: 0;
+}
+
+.step-trace .step-dir.ascent { color: var(--color-blue); }
+.step-trace .step-dir.descent { color: var(--color-footnote); }
+
+.step-trace .step-levels {
+  flex: 1;
+  color: var(--color-ink);
+}
+
+.step-trace .step-result {
+  width: 40px;
+  text-align: right;
+  flex-shrink: 0;
+  font-weight: 500;
+}
+
+.step-trace .step-result.pass { color: var(--color-green); }
+.step-trace .step-result.fail { color: var(--color-red); }
+
+/* === Judge reasoning === */
+.judge-quote {
+  font-family: var(--font-serif);
+  font-size: 14px;
+  font-style: italic;
+  color: var(--color-footnote);
+  border-left: 2px solid var(--color-rule);
+  padding: 8px 16px;
+  margin: 16px 0;
+  line-height: 1.6;
+}
+
+.judge-quote .attribution {
+  font-family: var(--font-sans);
+  font-style: normal;
+  font-size: 11px;
+  color: var(--color-caption);
+  margin-top: 6px;
+  text-align: right;
+}
+
+/* === Run accordion === */
+.run-detail {
+  border: 1px solid var(--color-rule);
+  margin: 12px 0;
+}
+
+.run-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--color-aged);
+  cursor: pointer;
+  user-select: none;
+  font-family: var(--font-sans);
+  font-size: 14px;
+}
+
+.run-header:hover { background: #ede8dc; }
+
+.run-header .run-id {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--color-blue);
+}
+
+.run-header .run-summary {
+  color: var(--color-footnote);
+}
+
+.run-header .run-result {
+  font-weight: 600;
+}
+
+.run-header .run-result.pass { color: var(--color-green); }
+.run-header .run-result.fail { color: var(--color-red); }
+
+.run-body {
+  padding: 16px;
+  display: none;
+}
+
+.run-detail.open .run-body { display: block; }
+
+.run-header::after {
+  content: '\25B6';
+  font-size: 10px;
+  color: var(--color-caption);
+  transition: transform 0.2s;
+  margin-left: 12px;
+}
+
+.run-detail.open .run-header::after {
+  transform: rotate(90deg);
+}
+
+/* === References === */
+.references {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--color-footnote);
+  line-height: 1.6;
+}
+
+.references ol {
+  padding-left: 20px;
+}
+
+.references li {
+  margin-bottom: 6px;
+}
+
+.references .ref-title {
+  font-style: italic;
+}
+
+/* === Model group tabs === */
+.model-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid var(--color-ink);
+  margin: 32px 0 0;
+  font-family: var(--font-sans);
+  font-size: 13px;
+}
+
+.model-tab {
+  padding: 8px 16px;
+  cursor: pointer;
+  color: var(--color-footnote);
+  border: 1px solid transparent;
+  border-bottom: none;
+  background: none;
+  margin-bottom: -2px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+}
+
+.model-tab:hover {
+  color: var(--color-ink);
+}
+
+.model-tab.active {
+  color: var(--color-ink);
+  font-weight: 600;
+  background: var(--color-paper);
+  border-color: var(--color-ink);
+  border-bottom-color: var(--color-paper);
+}

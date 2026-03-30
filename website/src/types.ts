@@ -1,0 +1,57 @@
+export interface JudgeResult {
+  detected_level: number
+  reasoning: string
+}
+
+export interface Step {
+  step_index: number
+  round: number
+  direction: 'ascent' | 'descent'
+  source_level: number
+  target_level: number
+  passed: boolean
+  expected_level: number
+  executor_tokens: number | null
+  judge_tokens: number | null
+  judge_result: JudgeResult
+}
+
+export interface Failure {
+  round: number
+  step_index: number
+  expected_level: number
+  detected_level: number
+  reasoning: string
+}
+
+export interface RunResult {
+  run_id: string
+  model: string
+  judge_model: string
+  timestamp: string
+  max_round: number
+  total_steps: number
+  steps: Step[]
+  failure: Failure | null
+}
+
+export interface ModelGroup {
+  executor: string
+  judge: string
+  label: string
+  runs: RunResult[]
+}
+
+export interface GroupStats {
+  group: ModelGroup
+  totalRuns: number
+  roundDistribution: Map<number, number>
+  maxRound: number
+  meanRound: number
+  medianRound: number
+  ascentPass: number
+  ascentTotal: number
+  descentPass: number
+  descentTotal: number
+  failureCount: number
+}
