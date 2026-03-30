@@ -1,0 +1,21 @@
+
+============================================================
+META-SKILL EXPERIMENT RESULTS — opus (3 runs)
+============================================================
+
+## Max Round Reached
+
+  Round 1                   | #                                1 (33%)
+  Round 2                   | #                                1 (33%)
+  Round 3                   | #                                1 (33%)
+
+## Summary
+
+  Total runs:          3
+  Completed all rounds: 3
+  Failed:              0
+  Mean max round:      2.0
+  Median max round:    2
+  Max max round:       3
+
+  No failures to analyze.

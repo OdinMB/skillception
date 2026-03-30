@@ -1,0 +1,52 @@
+
+============================================================
+META-SKILL EXPERIMENT RESULTS — mixed (3 runs)
+============================================================
+
+## Max Round Reached
+
+  None (failed round 1)     | #                                1 (33%)
+  Round 1                   | #                                1 (33%)
+  Round 2                   | #                                1 (33%)
+
+## Summary
+
+  Total runs:          3
+  Completed all rounds: 1
+  Failed:              2
+  Mean max round:      1.0
+  Median max round:    1
+  Max max round:       2
+
+## Failure Distribution by Round
+
+  Round  1 | #                                1
+  Round  2 | #                                1
+
+## Pass/Fail by Direction
+
+  ascent    : 3/4 passed (75%)
+  descent   : 3/4 passed (75%)
+
+## Failures by Expected Target Level
+
+  Level  2 | #                                1
+  Level  3 | #                                1
+
+## Level Mismatch Patterns (expected → detected)
+
+  Level 3 → Level 2: 1 times
+  Level 2 → Level 1: 1 times
+
+## Failure Modes
+
+  Level mismatch:  2
+  Executor/judge error: 0
+
+## Step-Level Success Rates
+
+  Step  1 | #############         66.7% (2/3)
+  Step  2 | ##########            50.0% (1/2)
+  Step  3 | #################### 100.0% (1/1)
+  Step  4 | #################### 100.0% (1/1)
+  Step  5 | #################### 100.0% (1/1)
