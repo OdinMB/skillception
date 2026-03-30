@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="website/public/academic-logo.v2.png" alt="Dept. of Recursion Studies" width="200">
+  <img src="website/public/academic-logo-v2.png" alt="Dept. of Recursion Studies" width="200">
 </p>
 
 <h3 align="center">SKILLCEPTION</h3>
