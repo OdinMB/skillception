@@ -17,7 +17,7 @@ export default function Abstract({ models, discarded }: Props) {
     0,
   )
   const allStats = models.flatMap((m) => m.variants.map((v) => v.stats))
-  const overallMax = Math.max(...allStats.map((s) => s.maxRound), 0)
+  const overallMax = allStats.map((s) => s.maxRound).reduce((a, b) => Math.max(a, b), 0)
   const peakLevel = overallMax >= 1 ? overallMax + 1 : null
 
   return (

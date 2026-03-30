@@ -8,7 +8,7 @@ interface Props {
 
 function RunRow({ run }: { run: RunResult }) {
   const [open, setOpen] = useState(false)
-  const peakLevel = Math.max(...run.steps.map((s) => s.target_level), 0)
+  const peakLevel = run.steps.map((s) => s.target_level).reduce((a, b) => Math.max(a, b), 0)
 
   return (
     <>

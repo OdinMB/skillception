@@ -589,18 +589,24 @@ def run_rounds(
 
 def run_single_experiment(run_id: str, bootstrap_path: Path,
                           max_rounds: int, model: str | None = None,
-                          judge_model: str | None = None) -> dict:
+                          judge_model: str | None = None,
+                          run_dir: Path | None = None) -> dict:
     """Execute one full experiment run.
 
     Thin orchestrator that wires up real executor/judge calls and
     filesystem I/O, then delegates to run_rounds() for the state machine.
+
+    Args:
+        run_dir: Base directory for this run's artifacts. Defaults to
+                 RUNS_DIR / run_id. Exposed as a parameter for testability.
     """
     print(f"\n{'='*60}")
     print(f"Run {run_id} (model: {model or 'default'})")
     print(f"{'='*60}")
 
     bootstrap_content = bootstrap_path.read_text(encoding="utf-8")
-    run_dir = RUNS_DIR / run_id
+    if run_dir is None:
+        run_dir = RUNS_DIR / run_id
     skills_dir = run_dir / "skills"
     log_handler = setup_run_logger(run_dir)
 
@@ -660,7 +666,7 @@ def main():
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
 
     for i in range(args.runs):
-        run_id = str(uuid.uuid4())[:8]
+        run_id = str(uuid.uuid4()).replace("-", "")[:12]
         result = run_single_experiment(run_id, args.bootstrap, args.max_rounds, model=args.model, judge_model=args.judge_model)
 
         # Validate result against schema before saving

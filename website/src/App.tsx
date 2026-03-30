@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { RunResult, GroupStats } from "./types";
+import type { RunResult, GroupStats, RoundTokenStats } from "./types";
 import {
   discardErrorRuns,
   groupByExecutorAndJudge,
@@ -7,8 +7,10 @@ import {
   computeTokensByRound,
   computeMeanStepTokens,
   pickFailureQuotes,
+  buildRoundBars,
+  failPct,
+  variantLabel,
 } from "./lib/analyze";
-import type { RoundTokenStats } from "./types";
 import JournalHeader from "./components/JournalHeader";
 import Abstract from "./components/Abstract";
 import BarChart from "./components/BarChart";
@@ -115,7 +117,7 @@ function App() {
       <div className="page">
         <JournalHeader />
         <div className="figure" style={{ textAlign: "center", marginTop: "2rem" }}>
-          <p style={{ fontStyle: "italic", color: "var(--color-body)" }}>
+          <p style={{ fontStyle: "italic", color: "var(--color-footnote)" }}>
             No experimental data available.
           </p>
           <p
@@ -138,21 +140,11 @@ function App() {
   const allMaxRounds = allVariants.flatMap((v) =>
     Array.from(v.stats.roundDistribution.keys()),
   );
-  const globalMinRound = allMaxRounds.length > 0 ? Math.min(...allMaxRounds) : 1;
-  const globalMaxRound = allMaxRounds.length > 0 ? Math.max(...allMaxRounds) : 1;
-  const globalMaxCount = Math.max(
-    ...allVariants.flatMap((v) => Array.from(v.stats.roundDistribution.values())),
-    1,
-  );
-
-  function buildRoundBars(stats: GroupStats) {
-    const bars = [];
-    for (let r = globalMinRound; r <= globalMaxRound; r++) {
-      const count = stats.roundDistribution.get(r) ?? 0;
-      bars.push({ label: `Round ${r}`, value: count });
-    }
-    return bars;
-  }
+  const globalMinRound = allMaxRounds.reduce((a, b) => Math.min(a, b), 0);
+  const globalMaxRound = allMaxRounds.reduce((a, b) => Math.max(a, b), 0);
+  const globalMaxCount = allVariants
+    .flatMap((v) => Array.from(v.stats.roundDistribution.values()))
+    .reduce((a, b) => Math.max(a, b), 1);
 
   const TOKEN_COLORS = {
     output: "var(--color-red)",
@@ -178,19 +170,6 @@ function App() {
         ],
       };
     });
-  }
-
-  function failPct(pass: number, total: number): string {
-    if (total === 0) return "\u2014";
-    const failRate = ((total - pass) / total) * 100;
-    return failRate === 0 ? "0%" : `${failRate.toFixed(1)}%`;
-  }
-
-  function variantLabel(model: ModelData, variant: JudgeVariant): string {
-    if (model.name === variant.judgeName) {
-      return `${model.label} (self-judged)`;
-    }
-    return `${model.label} (judged by ${variant.judgeLabel})`;
   }
 
   // Build flat list of (model, variant) pairs for the run overview tabs
@@ -232,11 +211,11 @@ function App() {
           {m.variants.map((v, vi) => (
             <div className="figure" key={`${m.name}-${v.judgeName}`}>
               <h3>
-                {variantLabel(m, v)} (N={v.stats.totalRuns})
+                {variantLabel(m.name, m.label, v.judgeName, v.judgeLabel)} (N={v.stats.totalRuns})
               </h3>
               <div className="figure-content">
                 <BarChart
-                  bars={buildRoundBars(v.stats)}
+                  bars={buildRoundBars(v.stats, globalMinRound, globalMaxRound)}
                   maxValue={globalMaxCount}
                 />
               </div>
@@ -319,7 +298,7 @@ function App() {
           return (
             <div key={`${m.name}-${v.judgeName}`}>
               <h3>
-                {variantLabel(m, v)}: sample judge reasoning
+                {variantLabel(m.name, m.label, v.judgeName, v.judgeLabel)}: sample judge reasoning
               </h3>
               {quotes.map((q) => (
                 <div className="judge-quote" key={q.run.run_id}>
@@ -518,7 +497,7 @@ function App() {
                   <div key={`tokens-${m.name}-${v.judgeName}`}>
                     <div className="figure">
                       <h3>
-                        {variantLabel(m, v)}: executor tokens per round (N={minRuns === maxRuns ? maxRuns : `${minRuns}–${maxRuns}`} runs)
+                        {variantLabel(m.name, m.label, v.judgeName, v.judgeLabel)}: executor tokens per round (N={minRuns === maxRuns ? maxRuns : `${minRuns}–${maxRuns}`} runs)
                       </h3>
                       <div className="figure-content">
                         <TokenChart rows={executorRoundRows} />
@@ -534,7 +513,7 @@ function App() {
                     </div>
                     <div className="figure">
                       <h3>
-                        {variantLabel(m, v)}: judge tokens per round
+                        {variantLabel(m.name, m.label, v.judgeName, v.judgeLabel)}: judge tokens per round
                       </h3>
                       <div className="figure-content">
                         <TokenChart rows={judgeRoundRows} />

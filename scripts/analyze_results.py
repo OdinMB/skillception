@@ -8,34 +8,14 @@ Usage:
 """
 
 import argparse
-import json
 import statistics
 import sys
 from collections import Counter
 from pathlib import Path
 
-try:
-    from scripts.result_schema import validate_result
-except ImportError:
-    from result_schema import validate_result
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-
-def load_results(runs_dir: Path) -> list[dict]:
-    """Load all result.json files from run subdirectories."""
-    results = []
-    for f in sorted(runs_dir.glob("*/result.json")):
-        try:
-            data = json.loads(f.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError) as e:
-            print(f"  Warning: skipping {f.parent.name}: {e}", file=sys.stderr)
-            continue
-        schema_errors = validate_result(data)
-        if schema_errors:
-            print(f"  Warning: {f.parent.name} failed schema validation:", file=sys.stderr)
-            for err in schema_errors:
-                print(f"    - {err}", file=sys.stderr)
-        results.append(data)
-    return results
+from scripts.result_schema import load_results
 
 
 def analyze_group(results: list[dict], label: str):
@@ -170,11 +150,14 @@ def main():
         sys.exit(1)
 
     results = load_results(args.runs_dir)
+    # Canonical definition: an "error run" has failure.error set to a string
+    # ("call" or "parse"), indicating the judge or executor crashed rather
+    # than producing a level mismatch. This predicate is mirrored in
+    # website/src/lib/analyze.ts (discardErrorRuns) — keep them in sync.
     def is_error_run(r: dict) -> bool:
         f = r.get("failure")
         if not f:
             return False
-        # error is "call" | "parse" for technical failures, false for legitimate mismatches
         return isinstance(f.get("error"), str)
 
     error_runs = [r for r in results if is_error_run(r)]

@@ -1,4 +1,4 @@
-import type { RunResult, GroupStats, RoundTokenStats, AgentTokenStats, TokenUsage } from '../types'
+import type { RunResult, GroupStats, RoundTokenStats, AgentTokenStats, TokenUsage, Failure } from '../types'
 
 /** Filter out runs that ended due to executor/judge errors. */
 export function discardErrorRuns(results: RunResult[]): RunResult[] {
@@ -240,6 +240,40 @@ export function computeMeanStepTokens(
   }
 }
 
+/** Build bar chart data for round distribution within a global range. */
+export function buildRoundBars(
+  stats: GroupStats,
+  globalMinRound: number,
+  globalMaxRound: number,
+): { label: string; value: number }[] {
+  const bars = []
+  for (let r = globalMinRound; r <= globalMaxRound; r++) {
+    const count = stats.roundDistribution.get(r) ?? 0
+    bars.push({ label: `Round ${r}`, value: count })
+  }
+  return bars
+}
+
+/** Format a failure percentage from pass count and total. */
+export function failPct(pass: number, total: number): string {
+  if (total === 0) return '\u2014'
+  const failRate = ((total - pass) / total) * 100
+  return failRate === 0 ? '0%' : `${failRate.toFixed(1)}%`
+}
+
+/** Build a display label for a model/judge variant. */
+export function variantLabel(
+  modelName: string,
+  modelLabel: string,
+  judgeName: string,
+  judgeLabel: string,
+): string {
+  if (modelName === judgeName) {
+    return `${modelLabel} (self-judged)`
+  }
+  return `${modelLabel} (judged by ${judgeLabel})`
+}
+
 /** Format a run's failure step as a human-readable string. */
 export function formatFailureStep(run: RunResult): string {
   if (!run.failure) return '\u2014'
@@ -249,6 +283,14 @@ export function formatFailureStep(run: RunResult): string {
     return `ascent to level ${failedStep.target_level}`
   }
   return `descent ${failedStep.source_level} \u2192 ${failedStep.target_level}`
+}
+
+/** Format a failure's detected level for display in quote attributions. */
+export function formatDetectedLevel(failure: Failure): string {
+  if (failure.detected_level === null) {
+    return typeof failure.error === 'string' ? `${failure.error} error` : 'error'
+  }
+  return `expected level ${failure.expected_level}, detected ${failure.detected_level}`
 }
 
 /**
@@ -273,7 +315,7 @@ export function pickFailureQuotes(
     picks.push({
       run: r,
       reasoning: r.failure!.reasoning,
-      description: `Run ${r.run_id.slice(0, 8)}, ${formatFailureStep(r)} (expected level ${r.failure!.expected_level}, detected ${r.failure!.detected_level === null ? (typeof r.failure!.error === 'string' ? r.failure!.error + ' error' : 'error') : r.failure!.detected_level})`,
+      description: `Run ${r.run_id.slice(0, 8)}, ${formatFailureStep(r)} (${formatDetectedLevel(r.failure!)})`,
     })
   }
   return picks

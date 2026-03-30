@@ -1,13 +1,16 @@
 """Result schema contract for Skillception experiment data.
 
 Defines TypedDicts matching the canonical result.json shape and the
-website's TypeScript types. Provides validation and TS codegen so
-Python and TypeScript never quietly drift apart.
+website's TypeScript types. Provides validation, TS codegen, and a
+shared loader so Python and TypeScript never quietly drift apart.
 
 Usage:
-    from result_schema import validate_result, RunResult
+    from result_schema import validate_result, RunResult, load_results
 """
 
+import json
+import sys
+from pathlib import Path
 from typing import NotRequired, TypedDict
 
 
@@ -34,6 +37,9 @@ class Step(TypedDict):
     executor_usage: TokenUsage | None
     judge_usage: TokenUsage | None
     judge_result: JudgeResult
+    # Present in raw data, stripped on export
+    source_path: NotRequired[str]
+    output_path: NotRequired[str]
 
 
 class Failure(TypedDict):
@@ -227,3 +233,29 @@ export interface RunResult {
   steps: Step[]
   failure: Failure | null
 }"""
+
+
+# ---------------------------------------------------------------------------
+# Shared loader
+# ---------------------------------------------------------------------------
+
+def load_results(runs_dir: Path) -> list[dict]:
+    """Load all result.json files from run subdirectories.
+
+    Shared by analyze_results.py and export_results.py to avoid
+    duplicating the glob-and-parse logic.
+    """
+    results = []
+    for f in sorted(runs_dir.glob("*/result.json")):
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as e:
+            print(f"  Warning: skipping {f.parent.name}: {e}", file=sys.stderr)
+            continue
+        schema_errors = validate_result(data)
+        if schema_errors:
+            print(f"  Warning: {f.parent.name} failed schema validation:", file=sys.stderr)
+            for err in schema_errors:
+                print(f"    - {err}", file=sys.stderr)
+        results.append(data)
+    return results

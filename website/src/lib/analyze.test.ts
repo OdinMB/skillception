@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import type { RunResult, Failure, Step, TokenUsage } from '../types'
+import type { RunResult, Failure, Step, TokenUsage, GroupStats } from '../types'
 import {
   discardErrorRuns,
   groupByExecutorAndJudge,
@@ -8,6 +8,10 @@ import {
   computeMeanStepTokens,
   formatFailureStep,
   pickFailureQuotes,
+  buildRoundBars,
+  failPct,
+  variantLabel,
+  formatDetectedLevel,
 } from './analyze'
 
 /** Factory for RunResult with sensible defaults. Override only what you need. */
@@ -49,6 +53,32 @@ function makeFailure(overrides: Partial<Failure> = {}): Failure {
     expected_level: 2,
     detected_level: 1,
     reasoning: 'mismatch',
+    ...overrides,
+  }
+}
+
+function makeStats(overrides: Partial<GroupStats> = {}): GroupStats {
+  return {
+    totalRuns: 10,
+    roundDistribution: new Map([[1, 5], [2, 3], [3, 2]]),
+    maxRound: 3,
+    meanRound: 1.7,
+    medianRound: 1,
+    ascentPass: 8,
+    ascentTotal: 10,
+    descentPass: 6,
+    descentTotal: 8,
+    failureCount: 2,
+    ...overrides,
+  }
+}
+
+function makeUsage(overrides: Partial<TokenUsage> = {}): TokenUsage {
+  return {
+    inputTokens: 10,
+    outputTokens: 100,
+    cacheReadInputTokens: 1000,
+    cacheCreationInputTokens: 500,
     ...overrides,
   }
 }
@@ -288,17 +318,104 @@ describe('pickFailureQuotes', () => {
   })
 })
 
-// --- computeTokensByRound ---
+// --- buildRoundBars ---
 
-function makeUsage(overrides: Partial<TokenUsage> = {}): TokenUsage {
-  return {
-    inputTokens: 10,
-    outputTokens: 100,
-    cacheReadInputTokens: 1000,
-    cacheCreationInputTokens: 500,
-    ...overrides,
-  }
-}
+describe('buildRoundBars', () => {
+  it('produces bars for each round in the global range', () => {
+    const stats = makeStats({
+      roundDistribution: new Map([[1, 5], [3, 2]]),
+    })
+    const bars = buildRoundBars(stats, 1, 3)
+    expect(bars).toHaveLength(3)
+    expect(bars[0]).toEqual({ label: 'Round 1', value: 5 })
+    expect(bars[1]).toEqual({ label: 'Round 2', value: 0 })
+    expect(bars[2]).toEqual({ label: 'Round 3', value: 2 })
+  })
+
+  it('includes rounds with zero counts', () => {
+    const stats = makeStats({
+      roundDistribution: new Map([[2, 1]]),
+    })
+    const bars = buildRoundBars(stats, 0, 3)
+    expect(bars).toHaveLength(4)
+    expect(bars[0].value).toBe(0) // round 0
+    expect(bars[2].value).toBe(1) // round 2
+  })
+})
+
+// --- failPct ---
+
+describe('failPct', () => {
+  it('returns em dash for zero total', () => {
+    expect(failPct(0, 0)).toBe('\u2014')
+  })
+
+  it('returns 0% when all pass', () => {
+    expect(failPct(10, 10)).toBe('0%')
+  })
+
+  it('computes correct failure percentage', () => {
+    expect(failPct(7, 10)).toBe('30.0%')
+  })
+
+  it('handles single failure', () => {
+    expect(failPct(9, 10)).toBe('10.0%')
+  })
+})
+
+// --- variantLabel ---
+
+describe('variantLabel', () => {
+  it('shows self-judged when model and judge match', () => {
+    expect(variantLabel('opus', 'Opus', 'opus', 'Opus')).toBe('Opus (self-judged)')
+  })
+
+  it('shows judged by when model and judge differ', () => {
+    expect(variantLabel('haiku', 'Haiku', 'opus', 'Opus')).toBe(
+      'Haiku (judged by Opus)',
+    )
+  })
+})
+
+// --- formatDetectedLevel ---
+
+describe('formatDetectedLevel', () => {
+  it('formats expected and detected levels', () => {
+    const failure: Failure = {
+      round: 1,
+      step_index: 0,
+      expected_level: 3,
+      detected_level: 2,
+      reasoning: 'off by one',
+    }
+    expect(formatDetectedLevel(failure)).toBe('expected level 3, detected 2')
+  })
+
+  it('formats null detected_level with error string', () => {
+    const failure: Failure = {
+      round: 1,
+      step_index: 0,
+      expected_level: 3,
+      detected_level: null,
+      reasoning: 'crashed',
+      error: 'call',
+    }
+    expect(formatDetectedLevel(failure)).toBe('call error')
+  })
+
+  it('formats null detected_level without error string', () => {
+    const failure: Failure = {
+      round: 1,
+      step_index: 0,
+      expected_level: 3,
+      detected_level: null,
+      reasoning: 'unknown',
+    }
+    expect(formatDetectedLevel(failure)).toBe('error')
+  })
+})
+
+// --- computeTokensByRound ---
 
 describe('computeTokensByRound', () => {
   it('returns empty map for empty input', () => {
@@ -645,4 +762,3 @@ describe('computeMeanStepTokens', () => {
     expect(result.stepCount).toBe(1)
   })
 })
-
