@@ -1,11 +1,20 @@
-runs/
+# Experiment runs (keep directory via .gitkeep, ignore actual run data)
+runs/*
+!runs/.gitkeep
+
+# Python
 __pycache__/
 *.pyc
 .pytest_cache/
 *.egg-info/
 dist/
+
+# Node / frontend
 node_modules/
-website/public/results.json
+
+# Tooling
 .playwright-mcp/
+
+# Windows null-device artifacts
 nul
 NUL
