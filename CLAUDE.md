@@ -15,7 +15,7 @@ The harness runs a recursive loop where each step calls `claude -p` twice: once 
 - `agents/executor.md` — prompt template interpolated into executor's `claude -p` call. Not a registered Claude Code agent — plain Markdown read by the Python harness.
 - `agents/judge.md` — prompt template for the judge. Same pattern.
 - `scripts/run_experiment.py` — main harness. Orchestrates `claude -p` subprocess calls, manages the round-based loop, logs results as JSON.
-- `scripts/analyze_results.py` — reads result JSONs from `results/`, prints aggregate statistics.
+- `scripts/analyze_results.py` — reads result JSONs from `runs/`, prints aggregate statistics.
 
 ## Architecture decisions
 
@@ -26,7 +26,10 @@ The harness runs a recursive loop where each step calls `claude -p` twice: once 
 - `--output-format json` returns a `{"result": "...", "usage": {...}}` envelope.
 - Windows paths are converted to forward slashes before embedding in prompts.
 
-## Runtime directories (gitignored)
+## Style
 
-- `results/` — one JSON file per run
-- `generated-skills/` — generated SKILL.md files organized by run ID and step
+This repo has a visual identity defined in `.claude/skills/skillception-style/SKILL.md`. Consult it before creating any visual or written assets. The short version: everything is styled as a formal academic paper from a fictional department. The humor is in the contrast between the serious presentation and the absurd content. Never explain the joke.
+
+## Runtime directory (gitignored)
+
+- `runs/` — one subdirectory per run, each containing `result.json` and `skills/` with generated SKILL.md files organized by step

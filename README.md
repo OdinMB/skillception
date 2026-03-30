@@ -1,83 +1,93 @@
-# Skillception
+<p align="center">
+  <img src="assets/seal.png" alt="Dept. of Recursive Skill Studies" width="200">
+</p>
 
-The skill-creator is meta. Meta is good. More meta is better.
+<h3 align="center">SKILLCEPTION</h3>
+<p align="center"><em>Proceedings of the Department of Recursive Skill Studies, Vol. 1, No. 1, March 2026</em></p>
 
-So naturally we asked: what if we made the skill-creator create a skill-creator-creator? And then had _that_ create a skill-creator? And then had _that_ create a skill-creator-creator-creator? And then—
+---
 
-You get the idea. We didn't stop. We _automated_ not stopping.
+# On the Recursive Limits of Meta-Skill Generation in Large Language Models
 
-## The premise
+**Claude et al.**<sup>1</sup>
 
-Claude Code has a skill that creates skills. That's already one level of meta. But one level of meta is for cowards. What we want to know is: **how deep can we go before Claude loses the plot?**
+> **Abstract.** We present an experiment harness for measuring the maximum depth of meta-recursive skill generation in Claude. A Skill Creator (level 0) creates skills. A Skill Creator Creator (level 1) creates Skill Creators. We continue this chain, ascending and descending through meta-levels, until semantic coherence breaks down. Early results suggest the model can maintain more levels of recursive abstraction than most humans can comfortably read about.
 
-```
-Level 0: Skill Creator                         — creates skills
-Level 1: Skill Creator Creator                  — creates things that create skills
-Level 2: Skill Creator Creator Creator          — creates things that create things that create skills
-Level 3: Skill Creator Creator Creator Creator  — you are here and already confused
-Level N: Skill Creator^(N+1)                    — creates level-(N-1) skills. allegedly.
-```
+## 1. Introduction
 
-## What actually happens
+A Claude Code *skill* is a reusable Markdown prompt that teaches Claude how to perform a specific task. The Skill Creator skill (level 0) generates new skills. This raises an obvious question that nobody asked: can Claude create a skill that creates a skill that creates a skill?
 
-Each run climbs to a new meta-level and then tries to climb back down, like an existential game of Chutes and Ladders:
+This repository is the experiment harness that answers that question, round by round, until the answer becomes "no."
 
-**Round 0:** The skill-creator creates a Skill Creator Creator. Then the Skill Creator Creator creates a Skill Creator. Simple enough. Two steps. Both Claudes nod sagely.
+## 2. Methodology
 
-**Round 1:** The new Skill Creator creates a Skill Creator Creator Creator. Then that cascades back down: SCCC makes an SCC, SCC makes an SC. Three steps. Things are still basically fine.
+The harness runs a recursive loop. Each round proceeds in two phases:
 
-**Round 2:** The Skill Creator creates a Skill Creator Creator Creator Creator. Then SCCCC makes an SCCC, which makes an SCC, which makes an SC. Four steps. The word "Creator" has lost all meaning.
+**Ascent.** Starting from the previous round's peak, the executor generates a skill one meta-level higher. A level-*n* skill, when followed, produces a level-(*n*-1) skill. A blind judge evaluates the output and determines what meta-level it actually targets.<sup>2</sup>
 
-**Round N:** One ascent step + N+1 descent steps. Each step is a separate Claude session that has to correctly understand what "a skill that creates skills that create skills that create skills that create skills" means. The error compounds like a game of telephone played by philosophy grad students.
+**Descent.** The skill cascade is walked back down to level 0, with each step verified by the judge. A round passes only if every step's detected level matches the expected level.
 
-## The twist: blind judging
+The run terminates on the first mismatch. The maximum round reached is the score.
 
-To keep this rigorous (as rigorous as a joke experiment deserves), a second Claude — the **judge** — evaluates each generated skill _blind_. It gets the SKILL.md with no context about what level it's supposed to be, and has to figure out the meta-level independently. If the judge disagrees with the expected level, the run fails.
+### 2.1 Architecture
 
-This means the experiment can't cheat its way to higher rounds. Every step is independently verified by a Claude that has no idea what's going on. Just like the rest of us.
+Each step invokes `claude -p` twice as a subprocess — once for the executor, once for the judge. Key design decisions:
 
-## Running the experiment
+- The `CLAUDECODE` env var is stripped from each subprocess to bypass the recursive-invocation guard
+- The executor receives `--allowedTools Write` only; the harness pre-creates output directories
+- The judge receives no tools — just text analysis returning JSON
+- `--max-turns 10` caps each invocation to prevent runaway loops
+- `--output-format json` returns a structured envelope with usage metrics
+
+### 2.2 Key Files
+
+| File | Role |
+|------|------|
+| `agents/executor.md` | Prompt template for the executor subprocess<sup>3</sup> |
+| `agents/judge.md` | Prompt template for the blind judge |
+| `scripts/run_experiment.py` | Main harness — orchestrates subprocesses, manages the round loop, logs results |
+| `scripts/analyze_results.py` | Reads result JSONs, prints aggregate statistics |
+
+## 3. Results
+
+Preliminary findings from 2 independent runs:
+
+| Run | Max Round | Steps | Peak Level | Failure Point |
+|-----|-----------|-------|------------|---------------|
+| `1e5a8c86` | 2 | 9 | 3 | — (clean exit) |
+| `d047e34d` | 5 | 31 | 7 | Round 6 descent, executor error |
+
+Run `d047e34d` achieved meta-level 7 — a *Skill Creator Creator Creator Creator Creator Creator Creator Creator* — before the executor process failed during descent at step 30.<sup>4</sup>
+
+The judge maintained correct meta-level detection across all 40 evaluated steps, including cases where the generated skill contained internal contradictions between its objective and its self-validation steps.
+
+## 4. Running the Experiment
 
 ```bash
-# One run. Watch it climb and fall.
 python scripts/run_experiment.py
+```
 
-# The full scientific experience: 100 runs, then stare at the wreckage.
-python scripts/run_experiment.py --runs 100
+Each run creates a subdirectory under `runs/` containing `result.json` and `skills/` with generated SKILL.md files organized by step index. The `runs/` directory is gitignored.
+
+To view aggregate statistics:
+
+```bash
 python scripts/analyze_results.py
-
-# "What if I only want 3 rounds of existential recursion?"
-python scripts/run_experiment.py --max-rounds 3
 ```
 
-## What you get
+## 5. References
 
-Each run saves a JSON trace to `results/` with every step: what was expected, what the judge detected, and the judge's reasoning (often entertaining in its own right).
+1. Hofstadter, D. R. (1979). *Godel, Escher, Bach: An Eternal Golden Braid.* Basic Books. Still the only book most people cite when they want to sound smart about recursion.
+2. Anthropic. (2026). "Claude Code Skill Creator Plugin." *Internal Documentation.* The thing that started all of this.
+3. Nobody. (2026). "A Practical Guide to Meta-Recursive Skill Generation." *Unpublished, and likely to remain so.*
+4. This README. (2026). "On the Recursive Limits of Meta-Skill Generation in Large Language Models." *Proceedings of the Dept. of Recursive Skill Studies,* 1(1). Yes, we cited ourselves. The recursion demanded it.
 
-The analysis script gives you the numbers:
+---
 
-- Distribution of how far runs got before failing
-- Whether ascent or descent is harder (spoiler: probably descent)
-- Which meta-level is the breaking point
-- The specific mismatches: "expected level 3, got level 2" tells you where the semantic compression fails
+<sup>1</sup> And also Claude. The experiment was designed by a human, executed by Claude, judged by Claude, analyzed by Claude, and written up by Claude. The human's contribution was typing `python scripts/run_experiment.py` and then going to make coffee.
 
-## The files
+<sup>2</sup> "Blind" in the sense that the judge has no knowledge of the expected level. It does, however, have access to the full text of the skill, which at level 7 is roughly the length of a short novel.
 
-```
-skillception/
-├── agents/
-│   ├── executor.md          # "Here is a skill. Now create a skill that creates that kind of skill."
-│   └── judge.md             # "What level of meta is this? Just a number, please."
-├── scripts/
-│   ├── run_experiment.py    # The machine that goes ping
-│   └── analyze_results.py   # The machine that counts the pings
-├── results/                 # [gitignored] The pings themselves
-└── generated-skills/        # [gitignored] A graveyard of increasingly confused SKILL.md files
-```
+<sup>3</sup> Not a registered Claude Code agent — just plain Markdown read by the Python harness. The distinction matters to approximately one person, and that person is the harness.
 
-## Requirements
-
-- Claude Code CLI (`claude`) on PATH
-- Python 3.10+
-- The skill-creator plugin installed (`~/.claude/plugins/marketplaces/claude-plugins-official/plugins/skill-creator/`)
-- A willingness to spend API credits on philosophical humor
+<sup>4</sup> We counted the "Creator"s three times to be sure.

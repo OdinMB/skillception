@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Style Explorer — Skillception</title>
+<style>
+  :root {
+    --bg: #0f0f0f;
+    --surface: #1a1a1a;
+    --surface-2: #242424;
+    --border: #333;
+    --text: #e8e8e8;
+    --text-muted: #888;
+    --accent: #7c6ef0;
+    --accent-dim: #5a4ec0;
+    --tab-active: #7c6ef0;
+    --tab-inactive: #333;
+    --radius: 8px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* Top bar */
+  .top-bar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+  }
+
+  .top-bar .project-name {
+    display: flex;
+    align-items: center;
+    padding: 12px 24px 12px 0;
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    border-right: 1px solid var(--border);
+    margin-right: 8px;
+    white-space: nowrap;
+  }
+
+  .tab-group {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    overflow-x: auto;
+  }
+
+  .tab {
+    padding: 14px 20px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-muted);
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s;
+    white-space: nowrap;
+    user-select: none;
+  }
+
+  .tab:hover { color: var(--text); background: var(--surface-2); }
+  .tab.active { color: var(--text); border-bottom-color: var(--tab-active); }
+
+  .phase-label {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    font-size: 12px;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  /* Content area */
+  .content { max-width: 960px; margin: 0 auto; padding: 32px 24px 64px; }
+
+  .direction-panel { display: none; }
+  .direction-panel.active { display: block; }
+
+  /* Section blocks */
+  .section {
+    margin-bottom: 40px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .section-header {
+    padding: 16px 20px;
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-2);
+  }
+
+  .section-body { padding: 20px; }
+
+  /* Concept / overview */
+  .concept-name {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .concept-tagline {
+    font-size: 16px;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+  }
+
+  .concept-description {
+    font-size: 15px;
+    line-height: 1.7;
+    color: var(--text);
+  }
+
+  /* Color palette */
+  .palette {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .color-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .color-group-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+
+  .color-row {
+    display: flex;
+    gap: 8px;
+  }
+
+  .swatch {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .swatch-color {
+    width: 64px;
+    height: 64px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.1);
+    transition: transform 0.15s;
+  }
+
+  .swatch-color:hover { transform: scale(1.08); }
+
+  .swatch-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-align: center;
+  }
+
+  .swatch-hex {
+    font-size: 10px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    color: var(--text-muted);
+    opacity: 0.7;
+  }
+
+  /* Typography */
+  .type-samples { display: flex; flex-direction: column; gap: 20px; }
+
+  .type-sample {
+    padding: 16px;
+    background: var(--surface-2);
+    border-radius: 6px;
+  }
+
+  .type-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  .type-role {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--accent);
+  }
+
+  .type-spec {
+    font-size: 11px;
+    font-family: monospace;
+    color: var(--text-muted);
+  }
+
+  .type-preview {
+    color: var(--text);
+    line-height: 1.3;
+  }
+
+  /* Imagery / art direction */
+  .imagery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+  }
+
+  .imagery-card {
+    background: var(--surface-2);
+    border-radius: 6px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .imagery-card-title {
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .imagery-card-desc {
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  .imagery-card img {
+    width: 100%;
+    border-radius: 4px;
+    margin-top: 4px;
+  }
+
+  /* Tone & voice */
+  .tone-traits {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .tone-trait {
+    background: var(--surface-2);
+    border-radius: 6px;
+    padding: 12px 16px;
+    flex: 1;
+    min-width: 180px;
+  }
+
+  .tone-trait-name {
+    font-weight: 600;
+    font-size: 15px;
+    margin-bottom: 4px;
+  }
+
+  .tone-trait-this {
+    font-size: 13px;
+    color: var(--accent);
+    margin-bottom: 2px;
+  }
+
+  .tone-trait-not {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  /* Motifs */
+  .motifs-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .motif-tag {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 13px;
+  }
+
+  /* Avoid list */
+  .avoid-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .avoid-list li {
+    padding: 10px 14px;
+    background: rgba(220, 60, 60, 0.08);
+    border-left: 3px solid #dc3c3c;
+    border-radius: 0 6px 6px 0;
+    font-size: 14px;
+    color: var(--text);
+  }
+
+  /* Reference images */
+  .ref-images {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 12px;
+  }
+
+  .ref-image {
+    background: var(--surface-2);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .ref-image img {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+  }
+
+  .ref-image-label {
+    padding: 8px 10px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  /* Style Mockups */
+  .mockup-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .mockup-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+
+  .mockup {
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+
+  @media (max-width: 640px) {
+    .mockup-grid { grid-template-columns: 1fr; }
+  }
+
+  /* Empty state */
+  .empty-state {
+    padding: 48px 24px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 14px;
+  }
+
+  .comparison-banner {
+    background: var(--accent-dim);
+    color: white;
+    text-align: center;
+    padding: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    display: none;
+  }
+
+  @media (max-width: 640px) {
+    .top-bar { padding: 0 12px; }
+    .tab { padding: 12px 14px; font-size: 13px; }
+    .content { padding: 20px 12px 48px; }
+    .swatch-color { width: 48px; height: 48px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="comparison-banner" id="comparison-banner"></div>
+
+<div class="top-bar">
+  <div class="project-name" id="project-name">Skillception</div>
+  <div class="tab-group" id="tab-group"></div>
+  <div class="phase-label" id="phase-label">Exploring</div>
+</div>
+
+<div class="content" id="content">
+  <div class="empty-state" id="empty-state">
+    Style directions will appear here as they are developed.
+  </div>
+</div>
+
+<script>
+// ── State ──
+const state = {
+  directions: {},
+  activeTab: null,
+  phase: 'exploring'
+};
+
+function setProject(name) {
+  document.getElementById('project-name').textContent = name;
+  document.title = `Style Explorer — ${name}`;
+}
+
+function setPhase(label) {
+  state.phase = label;
+  document.getElementById('phase-label').textContent = label;
+}
+
+function showComparisonBanner(text) {
+  const banner = document.getElementById('comparison-banner');
+  banner.textContent = text;
+  banner.style.display = 'block';
+}
+
+function hideComparisonBanner() {
+  document.getElementById('comparison-banner').style.display = 'none';
+}
+
+function addDirection(id, data) {
+  state.directions[id] = { ...data, colors: [], typography: [], imagery: [], tone: [], motifs: [], avoid: [], refs: [] };
+  renderTabs();
+  renderDirection(id);
+  if (!state.activeTab) switchTab(id);
+  document.getElementById('empty-state').style.display = 'none';
+}
+
+function updateDirection(id, data) {
+  if (!state.directions[id]) return;
+  Object.assign(state.directions[id], data);
+  renderDirection(id);
+}
+
+function removeDirection(id) {
+  delete state.directions[id];
+  const panel = document.getElementById(`panel-${id}`);
+  if (panel) panel.remove();
+  renderTabs();
+  const remaining = Object.keys(state.directions);
+  if (state.activeTab === id && remaining.length > 0) switchTab(remaining[0]);
+  if (remaining.length === 0) document.getElementById('empty-state').style.display = 'block';
+}
+
+function setColors(directionId, colorGroups) {
+  if (!state.directions[directionId]) return;
+  state.directions[directionId].colors = colorGroups;
+  renderSection(directionId, 'colors');
+  renderMockups(directionId);
+}
+
+function setTypography(directionId, samples) {
+  if (!state.directions[directionId]) return;
+  state.directions[directionId].typography = samples;
+  renderSection(directionId, 'typography');
+  renderMockups(directionId);
+}
+
+function setImagery(directionId, cards) {
+  if (!state.directions[directionId]) return;
+  state.directions[directionId].imagery = cards;
+  renderSection(directionId, 'imagery');
+}
+
+function setTone(directionId, traits) {
+  if (!state.directions[directionId]) return;
+  state.directions[directionId].tone = traits;
+  renderSection(directionId, 'tone');
+}
+
+function setMotifs(directionId, motifs) {
+  if (!state.directions[directionId]) return;
+  state.directions[directionId].motifs = motifs;
+  renderSection(directionId, 'motifs');
+}
+
+function setAvoid(directionId, items) {
+  if (!state.directions[directionId]) return;
+  state.directions[directionId].avoid = items;
+  renderSection(directionId, 'avoid');
+}
+
+function setRefImages(directionId, images) {
+  if (!state.directions[directionId]) return;
+  state.directions[directionId].refs = images;
+  renderSection(directionId, 'refs');
+}
+
+// ── Rendering ──
+
+function switchTab(id) {
+  state.activeTab = id;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.id === id));
+  document.querySelectorAll('.direction-panel').forEach(p => p.classList.toggle('active', p.id === `panel-${id}`));
+}
+
+function renderTabs() {
+  const group = document.getElementById('tab-group');
+  group.innerHTML = '';
+  for (const id of Object.keys(state.directions)) {
+    const tab = document.createElement('div');
+    tab.className = `tab${id === state.activeTab ? ' active' : ''}`;
+    tab.dataset.id = id;
+    tab.textContent = state.directions[id].name || id;
+    tab.onclick = () => switchTab(id);
+    group.appendChild(tab);
+  }
+}
+
+function renderDirection(id) {
+  const d = state.directions[id];
+  let panel = document.getElementById(`panel-${id}`);
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = `panel-${id}`;
+    panel.className = `direction-panel${id === state.activeTab ? ' active' : ''}`;
+    document.getElementById('content').appendChild(panel);
+  }
+
+  panel.innerHTML = `
+    <div class="section">
+      <div class="section-header">Concept</div>
+      <div class="section-body">
+        <div class="concept-name">${esc(d.name || '')}</div>
+        <div class="concept-tagline">${esc(d.tagline || '')}</div>
+        <div class="concept-description">${esc(d.description || '')}</div>
+      </div>
+    </div>
+    <div id="colors-${id}"></div>
+    <div id="mockups-${id}"></div>
+    <div id="typography-${id}"></div>
+    <div id="imagery-${id}"></div>
+    <div id="tone-${id}"></div>
+    <div id="motifs-${id}"></div>
+    <div id="avoid-${id}"></div>
+    <div id="refs-${id}"></div>
+  `;
+
+  ['colors', 'typography', 'imagery', 'tone', 'motifs', 'avoid', 'refs'].forEach(s => renderSection(id, s));
+  renderMockups(id);
+}
+
+function renderSection(directionId, section) {
+  const d = state.directions[directionId];
+  if (!d) return;
+  const container = document.getElementById(`${section}-${directionId}`);
+  if (!container) return;
+
+  const data = d[section];
+  if (!data || (Array.isArray(data) && data.length === 0)) {
+    container.innerHTML = '';
+    return;
+  }
+
+  const renderers = { colors: renderColors, typography: renderTypography, imagery: renderImagery, tone: renderTone, motifs: renderMotifs, avoid: renderAvoid, refs: renderRefs };
+  container.innerHTML = renderers[section](data);
+}
+
+function renderColors(groups) {
+  let html = '<div class="section"><div class="section-header">Color Palette</div><div class="section-body"><div class="palette">';
+  for (const g of groups) {
+    html += `<div class="color-group"><div class="color-group-label">${esc(g.label)}</div><div class="color-row">`;
+    for (const c of g.colors) {
+      html += `<div class="swatch"><div class="swatch-color" style="background:${esc(c.hex)}"></div><div class="swatch-label">${esc(c.name || '')}</div><div class="swatch-hex">${esc(c.hex)}</div></div>`;
+    }
+    html += '</div></div>';
+  }
+  html += '</div></div></div>';
+  return html;
+}
+
+function renderTypography(samples) {
+  let html = '<div class="section"><div class="section-header">Typography</div><div class="section-body"><div class="type-samples">';
+  for (const s of samples) {
+    const style = `font-family:${esc(s.family || 'inherit')};font-weight:${esc(s.weight || 'normal')};font-size:${esc(s.size || '16px')};${s.style || ''}`;
+    html += `<div class="type-sample"><div class="type-meta"><span class="type-role">${esc(s.role || '')}</span><span class="type-spec">${esc(s.family || '')} ${esc(s.weight || '')} / ${esc(s.size || '')}</span></div><div class="type-preview" style="${style}">${esc(s.preview || 'The quick brown fox jumps over the lazy dog')}</div></div>`;
+  }
+  html += '</div></div></div>';
+  return html;
+}
+
+function renderImagery(cards) {
+  let html = '<div class="section"><div class="section-header">Imagery & Art Direction</div><div class="section-body"><div class="imagery-grid">';
+  for (const c of cards) {
+    html += `<div class="imagery-card"><div class="imagery-card-title">${esc(c.title || '')}</div><div class="imagery-card-desc">${esc(c.description || '')}</div>${c.imageSrc ? `<img src="${esc(c.imageSrc)}" alt="${esc(c.title || '')}">` : ''}</div>`;
+  }
+  html += '</div></div></div>';
+  return html;
+}
+
+function renderTone(traits) {
+  let html = '<div class="section"><div class="section-header">Tone & Voice</div><div class="section-body"><div class="tone-traits">';
+  for (const t of traits) {
+    html += `<div class="tone-trait"><div class="tone-trait-name">${esc(t.name)}</div><div class="tone-trait-this">This: ${esc(t.this)}</div><div class="tone-trait-not">Not: ${esc(t.not)}</div></div>`;
+  }
+  html += '</div></div></div>';
+  return html;
+}
+
+function renderMotifs(motifs) {
+  let html = '<div class="section"><div class="section-header">Themes & Motifs</div><div class="section-body"><div class="motifs-list">';
+  for (const m of motifs) {
+    html += `<div class="motif-tag">${esc(m)}</div>`;
+  }
+  html += '</div></div></div>';
+  return html;
+}
+
+function renderAvoid(items) {
+  let html = '<div class="section"><div class="section-header">What to Avoid</div><div class="section-body"><ul class="avoid-list">';
+  for (const item of items) {
+    html += `<li>${esc(item)}</li>`;
+  }
+  html += '</ul></div></div>';
+  return html;
+}
+
+function renderRefs(images) {
+  let html = '<div class="section"><div class="section-header">Reference Images</div><div class="section-body"><div class="ref-images">';
+  for (const img of images) {
+    html += `<div class="ref-image"><img src="${esc(img.src)}" alt="${esc(img.label || '')}"><div class="ref-image-label">${esc(img.label || '')}</div></div>`;
+  }
+  html += '</div></div></div>';
+  return html;
+}
+
+// ── Mockup helpers ──
+
+function isLight(hex) {
+  if (!hex || hex.length < 7) return true;
+  const r = parseInt(hex.slice(1,3), 16);
+  const g = parseInt(hex.slice(3,5), 16);
+  const b = parseInt(hex.slice(5,7), 16);
+  return (r * 299 + g * 587 + b * 114) / 1000 > 128;
+}
+
+function contrastText(hex) {
+  return isLight(hex) ? '#1a1a1a' : '#ffffff';
+}
+
+function extractPalette(colorGroups) {
+  const p = { primary: null, secondary: null, accent: null, background: null, surface: null, text: null };
+  for (const g of colorGroups) {
+    const label = (g.label || '').toLowerCase();
+    const first = g.colors[0]?.hex;
+    if (!first) continue;
+    if (label.includes('primary')) p.primary = first;
+    else if (label.includes('accent')) p.accent = first;
+    else if (label.includes('secondary')) p.secondary = first;
+    else if (label.includes('background') || label.includes('bg')) p.background = first;
+    else if (label.includes('surface')) p.surface = first;
+    else if (label.includes('text')) p.text = first;
+    else if (label.includes('neutral')) {
+      if (!p.surface && g.colors.length > 1) p.surface = g.colors[g.colors.length - 1].hex;
+      if (!p.text) p.text = first;
+    }
+  }
+  const all = colorGroups.flatMap(g => g.colors.map(c => c.hex));
+  if (!p.primary && all[0]) p.primary = all[0];
+  if (!p.accent && all[1]) p.accent = all[1];
+  if (!p.accent) p.accent = p.primary;
+  if (!p.secondary) p.secondary = p.accent;
+  if (!p.background) p.background = isLight(p.primary) ? '#f8f8f8' : '#111111';
+  if (!p.surface) p.surface = isLight(p.primary) ? '#ffffff' : '#1e1e1e';
+  if (!p.text) p.text = contrastText(p.surface);
+  return p;
+}
+
+function extractFonts(typography) {
+  const f = { heading: null, body: null };
+  for (const s of typography) {
+    const role = (s.role || '').toLowerCase();
+    if (!f.heading && (role.includes('head') || role.includes('title') || role.includes('display'))) {
+      f.heading = { family: s.family || 'inherit', weight: s.weight || '700' };
+    }
+    if (!f.body && (role.includes('body') || role.includes('text') || role.includes('paragraph'))) {
+      f.body = { family: s.family || 'inherit', weight: s.weight || '400' };
+    }
+  }
+  if (!f.heading) f.heading = { family: 'inherit', weight: '700' };
+  if (!f.body) f.body = { family: 'inherit', weight: '400' };
+  return f;
+}
+
+function renderMockups(directionId) {
+  const d = state.directions[directionId];
+  if (!d) return;
+  const container = document.getElementById(`mockups-${directionId}`);
+  if (!container) return;
+
+  if (!d.colors || d.colors.length === 0) { container.innerHTML = ''; return; }
+
+  const p = extractPalette(d.colors);
+  const f = extractFonts(d.typography || []);
+  const primaryTxt = contrastText(p.primary);
+  const accentTxt = contrastText(p.accent);
+  const surfaceTxt = contrastText(p.surface);
+  const bodyMuted = isLight(p.surface) ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)';
+  const subtleBg = isLight(p.surface) ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)';
+
+  let html = '<div class="section"><div class="section-header">Style Preview &mdash; Applied</div><div class="section-body"><div class="mockup-grid">';
+
+  // Card mockup
+  html += `<div><div class="mockup-label">Content Card</div>
+    <div class="mockup" style="background:${esc(p.surface)}">
+      <div style="height:6px;background:${esc(p.accent)}"></div>
+      <div style="padding:20px">
+        <div style="font-family:${esc(f.heading.family)};font-weight:${esc(f.heading.weight)};font-size:18px;color:${esc(surfaceTxt)};margin-bottom:8px;line-height:1.2">Project Update</div>
+        <div style="font-family:${esc(f.body.family)};font-weight:${esc(f.body.weight)};font-size:13px;color:${bodyMuted};margin-bottom:16px;line-height:1.6">See how your palette and typography work together in a realistic content layout.</div>
+        <div style="display:inline-block;padding:8px 20px;background:${esc(p.accent)};color:${esc(accentTxt)};border-radius:6px;font-family:${esc(f.body.family)};font-weight:600;font-size:12px">Read More</div>
+      </div>
+    </div></div>`;
+
+  // Hero mockup
+  html += `<div><div class="mockup-label">Hero Section</div>
+    <div class="mockup" style="background:${esc(p.primary)};padding:32px 24px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:180px;gap:10px">
+      <div style="font-family:${esc(f.heading.family)};font-weight:${esc(f.heading.weight)};font-size:22px;color:${esc(primaryTxt)};line-height:1.2">Your Headline Here</div>
+      <div style="font-family:${esc(f.body.family)};font-weight:${esc(f.body.weight)};font-size:13px;color:${esc(primaryTxt)};opacity:0.8;max-width:280px;line-height:1.5">A subtitle showing how text reads against your primary color.</div>
+      <div style="display:inline-block;padding:10px 24px;background:${esc(p.accent)};color:${esc(accentTxt)};border-radius:6px;font-family:${esc(f.body.family)};font-weight:600;font-size:13px;margin-top:4px">Get Started</div>
+    </div></div>`;
+
+  // Social post mockup
+  html += `<div><div class="mockup-label">Social Post</div>
+    <div class="mockup" style="background:${esc(p.primary)};aspect-ratio:1;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:24px;text-align:center;gap:12px;max-height:240px">
+      <div style="width:36px;height:36px;border-radius:50%;background:${esc(p.accent)}"></div>
+      <div style="font-family:${esc(f.heading.family)};font-weight:${esc(f.heading.weight)};font-size:18px;color:${esc(primaryTxt)};line-height:1.2">Big Announcement</div>
+      <div style="font-family:${esc(f.body.family)};font-weight:${esc(f.body.weight)};font-size:12px;color:${esc(primaryTxt)};opacity:0.75;line-height:1.5;max-width:200px">Preview how your palette works in square social formats.</div>
+    </div></div>`;
+
+  // Dashboard widget mockup
+  html += `<div><div class="mockup-label">Dashboard Widget</div>
+    <div class="mockup" style="background:${esc(p.surface)};padding:20px">
+      <div style="font-family:${esc(f.body.family)};font-size:11px;color:${bodyMuted};text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">Monthly Overview</div>
+      <div style="display:flex;gap:16px">
+        <div style="flex:1">
+          <div style="font-family:${esc(f.heading.family)};font-weight:${esc(f.heading.weight)};font-size:24px;color:${esc(p.accent)};line-height:1">2,847</div>
+          <div style="font-family:${esc(f.body.family)};font-size:11px;color:${bodyMuted};margin-top:4px">Active Users</div>
+        </div>
+        <div style="flex:1">
+          <div style="font-family:${esc(f.heading.family)};font-weight:${esc(f.heading.weight)};font-size:24px;color:${esc(p.primary)};line-height:1">94%</div>
+          <div style="font-family:${esc(f.body.family)};font-size:11px;color:${bodyMuted};margin-top:4px">Satisfaction</div>
+        </div>
+      </div>
+      <div style="height:8px;background:${subtleBg};border-radius:4px;margin-top:16px;overflow:hidden">
+        <div style="width:72%;height:100%;background:${esc(p.accent)};border-radius:4px"></div>
+      </div>
+    </div></div>`;
+
+  html += '</div></div></div>';
+  container.innerHTML = html;
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; }
+
+document.addEventListener('keydown', (e) => {
+  const ids = Object.keys(state.directions);
+  if (ids.length < 2) return;
+  const idx = ids.indexOf(state.activeTab);
+  if (e.key === 'ArrowLeft' && idx > 0) switchTab(ids[idx - 1]);
+  if (e.key === 'ArrowRight' && idx < ids.length - 1) switchTab(ids[idx + 1]);
+});
+</script>
+
+<!-- Phase 2: Style Directions -->
+<script>
+setProject("Skillception");
+setPhase("Exploring Directions");
+
+addDirection("main", {
+  name: "Philosophy Department",
+  tagline: "Academic paper aesthetics for a deeply unserious experiment",
+  description: "What if a rigorous academic paper was written about something this absurd? Serif fonts, footnotes, figure captions, the whole scholarly apparatus — applied to an experiment about making an AI create a thing that creates a thing that creates a thing. The contrast IS the joke. Results presented as formal figures with dry captions."
+});
+setColors("main", [
+  { label: "Primary", colors: [{ hex: "#2c2c2c", name: "Ink" }] },
+  { label: "Accent", colors: [{ hex: "#8b0000", name: "Academic Red" }, { hex: "#1a5276", name: "Citation Blue" }] },
+  { label: "Secondary", colors: [{ hex: "#4a6741", name: "Pass Green" }, { hex: "#b8860b", name: "Warning Amber" }] },
+  { label: "Surface", colors: [{ hex: "#fefcf5", name: "Paper" }, { hex: "#f5f0e8", name: "Aged Paper" }] },
+  { label: "Neutral", colors: [{ hex: "#666666", name: "Footnote" }, { hex: "#999999", name: "Caption" }, { hex: "#d4cfc4", name: "Rule Line" }] }
+]);
+setTypography("main", [
+  { role: "Title", family: "Playfair Display", weight: "900", size: "42px", preview: "SKILLCEPTION" },
+  { role: "Heading", family: "Playfair Display", weight: "700", size: "24px", preview: "On the Recursive Limits of Meta-Skill Generation" },
+  { role: "Body", family: "Source Serif 4", weight: "400", size: "16px", preview: "We observe that semantic coherence degrades monotonically with meta-level depth (Fig. 2), a finding consistent with our initial hypothesis that Claude would, eventually, lose the plot." },
+  { role: "Caption", family: "Source Sans 3", weight: "400", size: "12px", style: "font-style:italic;", preview: "Fig. 3: Distribution of maximum round reached across 100 independent runs. The mode is 2, which is honestly better than we expected." },
+  { role: "Code / Data", family: "JetBrains Mono", weight: "400", size: "13px", preview: "Round 2 | Step 8 | descent | expected: 0 | detected: 0 | PASS" }
+]);
+setTone("main", [
+  { name: "Scholarly", this: "Formal academic language applied to absurd content", not: "Actually pretending this is real research" },
+  { name: "Footnoted", this: "Asides and clarifications that are funnier than the main text", not: "Footnotes that add real information" },
+  { name: "Measured", this: "Careful hedging about silly conclusions", not: "Bold claims about the significance of this" },
+  { name: "Dry", this: "Deadpan delivery — the contrast does the work", not: "Winking at the camera or explaining the joke" }
+]);
+setMotifs("main", ["academic paper layout", "figure numbers and captions", "footnote markers", "margin notes", "LaTeX-style formatting", "bibliography references to nonexistent papers", "thin horizontal rules", "formal table styling"]);
+setRefImages("main", [
+  { src: "assets/academic-logo.png", label: "Logo v1 — clean linework, simpler composition" },
+  { src: "assets/academic-logo-v2.png", label: "Logo v2 — ribbon banner, deeper engraving, better text" },
+  { src: "assets/academic-banner.png", label: "Banner — journal article header with title, subtitle, Claude et al., seal" }
+]);
+setImagery("main", [
+  { title: "Logo", description: "Circular academic seal. 'DEPT. OF RECURSIVE SKILL STUDIES' (top), 'EST. 2026' (bottom). Center: ouroboros snake eating a smaller snake eating a smaller snake. Dark red (#8b0000) ink on transparent. Rubber stamp / university seal aesthetic." },
+  { title: "Banner (GitHub social preview)", description: "Journal article header on parchment. 'SKILLCEPTION' as journal title in large Playfair Display. Subtitle: 'On the Recursive Limits of Meta-Skill Generation in Large Language Models'. Author: 'Claude et al.¹'. Vol. 1, No. 1. Snake seal in corner. 1280x640." },
+  { title: "Results Display", description: "Standalone HTML page styled as a published paper. Charts are numbered figures ('Figure 1', 'Figure 2') with italic captions. Summary stats in a formal 'Table 1' with proper thead/tbody. Colors: ink + academic red + citation blue only. Optional margin notes with dry commentary." },
+  { title: "Per-Run Detail View", description: "Expandable accordion for each run. Steps displayed as a formal procedure list. Pass/fail indicated by green/red marginal marks (like a graded paper). Judge reasoning shown in blockquote style with attribution." }
+]);
+</script>
+
+</body>
+</html>
