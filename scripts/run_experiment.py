@@ -4,7 +4,9 @@ Orchestrates the recursive skill-creation chain via claude -p CLI calls,
 with blind judge validation at each step.
 
 Usage:
-    python scripts/run_experiment.py                    # single run
+    python scripts/run_experiment.py                    # single run (default model: opus)
+    python scripts/run_experiment.py --model sonnet     # use Sonnet
+    python scripts/run_experiment.py --model haiku      # use Haiku
     python scripts/run_experiment.py --runs 10          # batch of 10
     python scripts/run_experiment.py --max-rounds 5     # cap at 5 rounds
     python scripts/run_experiment.py --bootstrap path   # custom bootstrap skill
@@ -30,8 +32,7 @@ DEFAULT_BOOTSTRAP = Path.home() / (
 
 EXECUTOR_TEMPLATE = PROJECT_ROOT / "agents" / "executor.md"
 JUDGE_TEMPLATE = PROJECT_ROOT / "agents" / "judge.md"
-RESULTS_DIR = PROJECT_ROOT / "results"
-GENERATED_DIR = PROJECT_ROOT / "generated-skills"
+RUNS_DIR = PROJECT_ROOT / "runs"
 
 
 def make_env():
@@ -53,7 +54,8 @@ def level_slug(level: int) -> str:
 
 
 def call_claude(prompt: str, allowed_tools: str | None = None,
-                timeout: int = 300) -> dict:
+                timeout: int = 300, model: str | None = None,
+                tmp_dir: Path | None = None) -> dict:
     """Call claude -p and return the parsed JSON envelope.
 
     Writes the prompt to a temp file to avoid Windows command-line length
@@ -63,7 +65,9 @@ def call_claude(prompt: str, allowed_tools: str | None = None,
     On failure, returns {"result": "", "error": str}.
     """
     # Write prompt to temp file (Windows command line can't handle long args)
-    prompt_file = Path(tempfile.mktemp(suffix=".md", dir=str(PROJECT_ROOT)))
+    effective_tmp = tmp_dir or PROJECT_ROOT
+    effective_tmp.mkdir(parents=True, exist_ok=True)
+    prompt_file = Path(tempfile.mktemp(suffix=".md", dir=str(effective_tmp)))
     try:
         prompt_file.write_text(prompt, encoding="utf-8")
         prompt_path_str = str(prompt_file).replace("\\", "/")
@@ -79,6 +83,8 @@ def call_claude(prompt: str, allowed_tools: str | None = None,
             "--output-format", "json",
             "--max-turns", "10",
         ]
+        if model:
+            cmd.extend(["--model", model])
         if allowed_tools:
             cmd.extend(["--allowedTools", allowed_tools])
 
@@ -133,7 +139,7 @@ def extract_json(text: str) -> dict | None:
 
 
 def run_executor(source_content: str, target_level: int,
-                 output_dir: Path) -> dict:
+                 output_dir: Path, model: str | None = None) -> dict:
     """Run the executor agent to generate a skill at the target level.
 
     Returns dict with keys: success (bool), output_path (str),
@@ -180,7 +186,8 @@ The output directory already exists. Write the SKILL.md to: {output_path_str}
     # Pre-create directory
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    response = call_claude(prompt, allowed_tools="Read,Write")
+    response = call_claude(prompt, allowed_tools="Read,Write", model=model,
+                           tmp_dir=output_dir)
 
     if "error" in response:
         return {"success": False, "output_path": str(output_path),
@@ -196,7 +203,8 @@ The output directory already exists. Write the SKILL.md to: {output_path_str}
             "error": "executor did not write output file"}
 
 
-def run_judge(skill_content: str) -> dict:
+def run_judge(skill_content: str, model: str | None = None,
+              run_dir: Path | None = None) -> dict:
     """Run the judge agent to blindly detect the meta-level.
 
     Returns dict with keys: detected_level (int), reasoning (str),
@@ -213,7 +221,8 @@ def run_judge(skill_content: str) -> dict:
 {skill_content}
 """
 
-    response = call_claude(prompt, allowed_tools="Read")
+    response = call_claude(prompt, allowed_tools="Read", model=model,
+                           tmp_dir=run_dir)
 
     if "error" in response:
         return {"detected_level": -1, "reasoning": "",
@@ -233,21 +242,40 @@ def run_judge(skill_content: str) -> dict:
             "error": f"could not parse judge response: {response['result'][:200]}"}
 
 
+JUDGE_RETRIES = 2
+
+
+def run_judge_with_retries(skill_content: str, model: str | None = None,
+                           run_dir: Path | None = None) -> dict:
+    """Run the judge, retrying up to JUDGE_RETRIES times on errors."""
+    for attempt in range(1 + JUDGE_RETRIES):
+        judge_result = run_judge(skill_content, model=model, run_dir=run_dir)
+        if not judge_result.get("error"):
+            return judge_result
+        if attempt < JUDGE_RETRIES:
+            print(f"    Judge error (attempt {attempt + 1}), retrying: {judge_result['error']}")
+    return judge_result
+
+
 def run_single_experiment(run_id: str, bootstrap_path: Path,
-                          max_rounds: int) -> dict:
+                          max_rounds: int, model: str | None = None,
+                          judge_model: str | None = None) -> dict:
     """Execute one full experiment run.
 
     Returns a result dict matching the schema in the plan.
     """
     print(f"\n{'='*60}")
-    print(f"Run {run_id}")
+    print(f"Run {run_id} (model: {model or 'default'})")
     print(f"{'='*60}")
 
     bootstrap_content = bootstrap_path.read_text(encoding="utf-8")
-    run_dir = GENERATED_DIR / f"run-{run_id}"
+    run_dir = RUNS_DIR / run_id
+    skills_dir = run_dir / "skills"
 
     result = {
         "run_id": run_id,
+        "model": model or "default",
+        "judge_model": judge_model or "default",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "max_round": -1,
         "total_steps": 0,
@@ -267,8 +295,8 @@ def run_single_experiment(run_id: str, bootstrap_path: Path,
         # === ASCENT: current SC creates a skill of level (round+1) ===
         print(f"  Step {step_index}: Ascent — {level_name(0)} → {level_name(target_ascent_level)}")
 
-        step_dir = run_dir / f"step-{step_index:02d}"
-        exec_result = run_executor(current_sc_content, target_ascent_level, step_dir)
+        step_dir = skills_dir / f"step-{step_index:02d}"
+        exec_result = run_executor(current_sc_content, target_ascent_level, step_dir, model=model)
 
         step_record = {
             "step_index": step_index,
@@ -301,7 +329,7 @@ def run_single_experiment(run_id: str, bootstrap_path: Path,
 
         # Judge the ascent output
         generated_content = Path(exec_result["output_path"]).read_text(encoding="utf-8")
-        judge_result = run_judge(generated_content)
+        judge_result = run_judge_with_retries(generated_content, model=judge_model, run_dir=run_dir)
 
         step_record["judge_result"] = {
             "detected_level": judge_result["detected_level"],
@@ -352,8 +380,8 @@ def run_single_experiment(run_id: str, bootstrap_path: Path,
         for descent_target in range(target_ascent_level - 1, -1, -1):
             print(f"  Step {step_index}: Descent — {level_name(descent_source_level)} → {level_name(descent_target)}")
 
-            step_dir = run_dir / f"step-{step_index:02d}"
-            exec_result = run_executor(descent_source_content, descent_target, step_dir)
+            step_dir = skills_dir / f"step-{step_index:02d}"
+            exec_result = run_executor(descent_source_content, descent_target, step_dir, model=model)
 
             step_record = {
                 "step_index": step_index,
@@ -385,7 +413,7 @@ def run_single_experiment(run_id: str, bootstrap_path: Path,
                 return result
 
             generated_content = Path(exec_result["output_path"]).read_text(encoding="utf-8")
-            judge_result = run_judge(generated_content)
+            judge_result = run_judge_with_retries(generated_content, model=judge_model, run_dir=run_dir)
 
             step_record["judge_result"] = {
                 "detected_level": judge_result["detected_level"],
@@ -451,6 +479,10 @@ def main():
                         help="Number of experiment runs (default: 1)")
     parser.add_argument("--max-rounds", type=int, default=10,
                         help="Maximum rounds per run (default: 10)")
+    parser.add_argument("--model", type=str, default="opus",
+                        help="Claude model for the executor (e.g. opus, sonnet, haiku)")
+    parser.add_argument("--judge-model", type=str, default="opus",
+                        help="Claude model for the judge (default: opus)")
     parser.add_argument("--bootstrap", type=Path, default=DEFAULT_BOOTSTRAP,
                         help="Path to bootstrap skill-creator SKILL.md")
     args = parser.parse_args()
@@ -461,14 +493,16 @@ def main():
         sys.exit(1)
 
     # Ensure output dirs
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    RUNS_DIR.mkdir(parents=True, exist_ok=True)
 
     for i in range(args.runs):
         run_id = str(uuid.uuid4())[:8]
-        result = run_single_experiment(run_id, args.bootstrap, args.max_rounds)
+        result = run_single_experiment(run_id, args.bootstrap, args.max_rounds, model=args.model, judge_model=args.judge_model)
 
         # Save result
-        result_path = RESULTS_DIR / f"{run_id}.json"
+        run_dir = RUNS_DIR / run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+        result_path = run_dir / "result.json"
         result_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
         print(f"Result saved: {result_path}")
 
