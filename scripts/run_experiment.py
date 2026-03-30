@@ -297,8 +297,13 @@ def run_judge_with_retries(skill_content: str, model: str | None = None,
 
 def run_single_experiment(run_id: str, bootstrap_path: Path,
                           max_rounds: int, model: str | None = None,
-                          judge_model: str | None = None) -> dict:
+                          judge_model: str | None = None,
+                          run_dir: Path | None = None) -> dict:
     """Execute one full experiment run.
+
+    Args:
+        run_dir: Base directory for this run's artifacts. Defaults to
+                 RUNS_DIR / run_id. Exposed as a parameter for testability.
 
     Returns a result dict matching the schema in the plan.
     """
@@ -307,7 +312,8 @@ def run_single_experiment(run_id: str, bootstrap_path: Path,
     print(f"{'='*60}")
 
     bootstrap_content = bootstrap_path.read_text(encoding="utf-8")
-    run_dir = RUNS_DIR / run_id
+    if run_dir is None:
+        run_dir = RUNS_DIR / run_id
     skills_dir = run_dir / "skills"
 
     result = {
@@ -537,7 +543,7 @@ def main():
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
 
     for i in range(args.runs):
-        run_id = str(uuid.uuid4())[:8]
+        run_id = str(uuid.uuid4()).replace("-", "")[:12]
         result = run_single_experiment(run_id, args.bootstrap, args.max_rounds, model=args.model, judge_model=args.judge_model)
 
         # Save result

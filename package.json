@@ -6,6 +6,7 @@
     "website:dev": "npm --prefix website run dev",
     "website:build": "npm --prefix website run build",
     "website:typecheck": "npm --prefix website run typecheck",
+    "website:sync-check": "python scripts/check_types_sync.py",
     "website:lint": "npm --prefix website run lint",
     "website:test": "npm --prefix website run test",
     "website:export-data": "npm --prefix website run export-data"

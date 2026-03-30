@@ -7,11 +7,15 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b",
+    "check-types-sync": "python ../scripts/check_types_sync.py",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
     "preview": "vite preview",
     "export-data": "python ../scripts/export_results.py --runs-dir ../runs --output public/results.json"
+  },
+  "engines": {
+    "node": ">=20"
   },
   "dependencies": {
     "react": "^19.2.4",

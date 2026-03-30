@@ -13,23 +13,18 @@ import json
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from scripts.result_schema import load_results
+
 
 def load_and_clean(runs_dir: Path) -> list[dict]:
     """Load all result.json files, stripping local file paths."""
-    results = []
-    for f in sorted(runs_dir.glob("*/result.json")):
-        try:
-            data = json.loads(f.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError) as e:
-            print(f"  Warning: skipping {f.parent.name}: {e}", file=sys.stderr)
-            continue
-
-        # Strip file paths from steps (contain local machine info)
+    results = load_results(runs_dir)
+    for data in results:
         for step in data.get("steps", []):
             step.pop("source_path", None)
             step.pop("output_path", None)
-
-        results.append(data)
     return results
 
 

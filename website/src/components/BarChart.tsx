@@ -11,7 +11,7 @@ interface Props {
 }
 
 export default function BarChart({ bars, maxValue }: Props) {
-  const max = maxValue ?? Math.max(...bars.map((b) => b.value), 1)
+  const max = maxValue ?? bars.map((b) => b.value).reduce((a, b) => Math.max(a, b), 1)
   return (
     <div className="bar-chart">
       {bars.map((bar) => (

@@ -8,22 +8,14 @@ Usage:
 """
 
 import argparse
-import json
 import statistics
 import sys
 from collections import Counter
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-def load_results(runs_dir: Path) -> list[dict]:
-    """Load all result.json files from run subdirectories."""
-    results = []
-    for f in sorted(runs_dir.glob("*/result.json")):
-        try:
-            results.append(json.loads(f.read_text(encoding="utf-8")))
-        except (json.JSONDecodeError, OSError) as e:
-            print(f"  Warning: skipping {f.parent.name}: {e}", file=sys.stderr)
-    return results
+from scripts.result_schema import load_results
 
 
 def analyze_group(results: list[dict], label: str):
@@ -157,6 +149,10 @@ def main():
         sys.exit(1)
 
     results = load_results(args.runs_dir)
+    # Canonical definition: an "error run" has failure.detected_level == -1,
+    # meaning the judge or executor crashed rather than producing a level
+    # mismatch. This predicate is mirrored in website/src/lib/analyze.ts
+    # (discardErrorRuns) — keep them in sync.
     error_runs = [r for r in results
                   if r.get("failure") and r["failure"].get("detected_level") == -1]
     clean_results = [r for r in results

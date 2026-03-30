@@ -5,6 +5,9 @@ import {
   groupByExecutorAndJudge,
   computeStats,
   pickFailureQuotes,
+  buildRoundBars,
+  failPct,
+  variantLabel,
 } from "./lib/analyze";
 import JournalHeader from "./components/JournalHeader";
 import Abstract from "./components/Abstract";
@@ -102,7 +105,7 @@ function App() {
       <div className="page">
         <JournalHeader />
         <div className="figure" style={{ textAlign: "center", marginTop: "2rem" }}>
-          <p style={{ fontStyle: "italic", color: "var(--color-body)" }}>
+          <p style={{ fontStyle: "italic", color: "var(--color-footnote)" }}>
             No experimental data available.
           </p>
           <p
@@ -125,34 +128,11 @@ function App() {
   const allMaxRounds = allVariants.flatMap((v) =>
     Array.from(v.stats.roundDistribution.keys()),
   );
-  const globalMinRound = Math.min(...allMaxRounds, 0);
-  const globalMaxRound = Math.max(...allMaxRounds, 0);
-  const globalMaxCount = Math.max(
-    ...allVariants.flatMap((v) => Array.from(v.stats.roundDistribution.values())),
-    1,
-  );
-
-  function buildRoundBars(stats: GroupStats) {
-    const bars = [];
-    for (let r = globalMinRound; r <= globalMaxRound; r++) {
-      const count = stats.roundDistribution.get(r) ?? 0;
-      bars.push({ label: `Round ${r}`, value: count });
-    }
-    return bars;
-  }
-
-  function failPct(pass: number, total: number): string {
-    if (total === 0) return "\u2014";
-    const failRate = ((total - pass) / total) * 100;
-    return failRate === 0 ? "0%" : `${failRate.toFixed(1)}%`;
-  }
-
-  function variantLabel(model: ModelData, variant: JudgeVariant): string {
-    if (model.name === variant.judgeName) {
-      return `${model.label} (self-judged)`;
-    }
-    return `${model.label} (judged by ${variant.judgeLabel})`;
-  }
+  const globalMinRound = allMaxRounds.reduce((a, b) => Math.min(a, b), 0);
+  const globalMaxRound = allMaxRounds.reduce((a, b) => Math.max(a, b), 0);
+  const globalMaxCount = allVariants
+    .flatMap((v) => Array.from(v.stats.roundDistribution.values()))
+    .reduce((a, b) => Math.max(a, b), 1);
 
   // Build flat list of (model, variant) pairs for the run overview tabs
   const runTabItems = models.flatMap((m) =>
@@ -193,11 +173,11 @@ function App() {
           {m.variants.map((v, vi) => (
             <div className="figure" key={`${m.name}-${v.judgeName}`}>
               <h3>
-                {variantLabel(m, v)} (N={v.stats.totalRuns})
+                {variantLabel(m.name, m.label, v.judgeName, v.judgeLabel)} (N={v.stats.totalRuns})
               </h3>
               <div className="figure-content">
                 <BarChart
-                  bars={buildRoundBars(v.stats)}
+                  bars={buildRoundBars(v.stats, globalMinRound, globalMaxRound)}
                   maxValue={globalMaxCount}
                 />
               </div>
@@ -280,7 +260,7 @@ function App() {
           return (
             <div key={`${m.name}-${v.judgeName}`}>
               <h3>
-                {variantLabel(m, v)}: sample judge reasoning
+                {variantLabel(m.name, m.label, v.judgeName, v.judgeLabel)}: sample judge reasoning
               </h3>
               {quotes.map((q) => (
                 <div className="judge-quote" key={q.run.run_id}>
