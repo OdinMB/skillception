@@ -12,7 +12,7 @@ The harness runs a recursive loop where each step calls `claude -p` twice: once 
 
 ## Website
 
-Results website in `website/` — React/TypeScript/Vite/Tailwind. Displays experiment results dynamically from `runs/` data.
+Live at **https://skillception.study**. Source in `website/` — React/TypeScript/Vite/Tailwind. Displays experiment results dynamically from `runs/` data.
 
 ### Website commands (from repo root)
 

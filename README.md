@@ -5,6 +5,10 @@
 <h3 align="center">SKILLCEPTION</h3>
 <p align="center"><em>Proceedings of the Department of Recursion Studies, Vol. 1, No. 1, March 2026</em></p>
 
+<p align="center">
+  <a href="https://skillception.study">skillception.study</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
+</p>
+
 ---
 
 # On the Recursive Limits of Meta-Skill Generation in Large Language Models
