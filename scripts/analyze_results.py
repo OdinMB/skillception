@@ -46,7 +46,7 @@ def analyze_group(results: list[dict], label: str):
         count = round_counts[level]
         bar = "#" * count
         pct = count / n * 100
-        row_label = f"Round {level}" if level >= 0 else "None (failed round 0)"
+        row_label = f"Round {level}" if level >= 1 else "None (failed round 1)"
         print(f"  {row_label:25s} | {bar:30s} {count:3d} ({pct:.0f}%)")
 
     # Failure analysis
@@ -59,7 +59,7 @@ def analyze_group(results: list[dict], label: str):
     print(f"  Failed:              {len(failures)}")
 
     if max_rounds:
-        valid_rounds = [r for r in max_rounds if r >= 0]
+        valid_rounds = [r for r in max_rounds if r >= 1]
         if valid_rounds:
             print(f"  Mean max round:      {sum(valid_rounds) / len(valid_rounds):.1f}")
             print(f"  Median max round:    {statistics.median(valid_rounds)}")

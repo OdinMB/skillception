@@ -43,14 +43,15 @@ def make_env():
 def level_name(level: int) -> str:
     """Return human-readable name for a meta-level.
 
-    Level 0 = 'Skill Creator', Level 1 = 'Skill Creator Creator', etc.
+    The number of 'Creator's equals the level:
+    Level 1 = 'Skill Creator', Level 2 = 'Skill Creator Creator', etc.
     """
-    return "Skill" + " Creator" * (level + 1)
+    return "Skill" + " Creator" * level
 
 
 def level_slug(level: int) -> str:
     """Return a kebab-case slug for a meta-level."""
-    return "skill" + "-creator" * (level + 1)
+    return "skill" + "-creator" * level
 
 
 def call_claude(prompt: str, allowed_tools: str | None = None,
@@ -149,7 +150,7 @@ def run_executor(source_content: str, target_level: int,
     output_path = output_dir / level_slug(target_level) / "SKILL.md"
     output_path_str = str(output_path).replace("\\", "/")
 
-    if target_level == 0:
+    if target_level == 1:
         purpose_line = (
             "This skill's purpose: when someone follows its instructions, "
             "they should produce an **arbitrary skill** (not a skill creator "
@@ -277,23 +278,23 @@ def run_single_experiment(run_id: str, bootstrap_path: Path,
         "model": model or "default",
         "judge_model": judge_model or "default",
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "max_round": -1,
+        "max_round": 0,
         "total_steps": 0,
         "steps": [],
         "failure": None,
     }
 
-    # The "current SC" — the level-0 skill used to start each round
+    # The "current SC" — the level-1 skill used to start each round
     current_sc_content = bootstrap_content
     current_sc_path = str(bootstrap_path)
     step_index = 0
 
-    for round_num in range(max_rounds):
+    for round_num in range(1, max_rounds + 1):
         target_ascent_level = round_num + 1
         print(f"\n--- Round {round_num} (ascend to level {target_ascent_level}, then descend) ---")
 
         # === ASCENT: current SC creates a skill of level (round+1) ===
-        print(f"  Step {step_index}: Ascent — {level_name(0)} → {level_name(target_ascent_level)}")
+        print(f"  Step {step_index}: Ascent — {level_name(1)} → {level_name(target_ascent_level)}")
 
         step_dir = skills_dir / f"step-{step_index:02d}"
         exec_result = run_executor(current_sc_content, target_ascent_level, step_dir, model=model)
@@ -302,7 +303,7 @@ def run_single_experiment(run_id: str, bootstrap_path: Path,
             "step_index": step_index,
             "round": round_num,
             "direction": "ascent",
-            "source_level": 0,
+            "source_level": 1,
             "target_level": target_ascent_level,
             "source_path": current_sc_path,
             "output_path": exec_result["output_path"],
@@ -372,12 +373,12 @@ def run_single_experiment(run_id: str, bootstrap_path: Path,
 
         print(f"    PASS (level {judge_result['detected_level']})")
 
-        # === DESCENT: cascade from level (round+1) down to level 0 ===
+        # === DESCENT: cascade from level (round+1) down to level 1 ===
         descent_source_content = generated_content
         descent_source_path = exec_result["output_path"]
         descent_source_level = target_ascent_level
 
-        for descent_target in range(target_ascent_level - 1, -1, -1):
+        for descent_target in range(target_ascent_level - 1, 0, -1):
             print(f"  Step {step_index}: Descent — {level_name(descent_source_level)} → {level_name(descent_target)}")
 
             step_dir = skills_dir / f"step-{step_index:02d}"
@@ -477,8 +478,8 @@ def main():
     parser = argparse.ArgumentParser(description="Meta-Skill Recursive Experiment")
     parser.add_argument("--runs", type=int, default=1,
                         help="Number of experiment runs (default: 1)")
-    parser.add_argument("--max-rounds", type=int, default=10,
-                        help="Maximum rounds per run (default: 10)")
+    parser.add_argument("--max-rounds", type=int, default=9,
+                        help="Maximum rounds per run (default: 9)")
     parser.add_argument("--model", type=str, default="opus",
                         help="Claude model for the executor (e.g. opus, sonnet, haiku)")
     parser.add_argument("--judge-model", type=str, default="opus",

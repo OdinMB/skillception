@@ -8,7 +8,7 @@ This is a humor project. The README is written in a dry, self-aware comedic voic
 
 ## What this repo does
 
-The harness runs a recursive loop where each step calls `claude -p` twice: once for an **executor** (generates a SKILL.md) and once for a **judge** (blindly evaluates what meta-level that SKILL.md targets). A run proceeds in rounds of ascending meta-level then cascading back down, stopping on the first mismatch between expected and detected level.
+The harness runs a recursive loop where each step calls `claude -p` twice: once for an **executor** (generates a SKILL.md) and once for a **judge** (blindly evaluates what meta-level that SKILL.md targets). A run proceeds in rounds of ascending meta-level then cascading back down, stopping on the first mismatch between expected and detected level. See `.context/nomenclature.md` for the canonical definitions of levels, rounds, and naming conventions.
 
 ## Website
 

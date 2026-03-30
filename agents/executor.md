@@ -12,12 +12,12 @@ You will receive three things:
 
 ## Meta-Level Taxonomy
 
-Skills in this experiment exist at different meta-levels:
+Skills in this experiment exist at different meta-levels. The level equals the number of "Creator"s in the name:
 
-- **Level 0 — Skill Creator (SC):** A skill that creates arbitrary skills. When someone follows this skill's instructions, they produce a new skill (any kind).
-- **Level 1 — Skill Creator Creator (SCC):** A skill that creates Skill Creators. When someone follows this skill's instructions, they produce a level-0 skill (a Skill Creator).
-- **Level 2 — Skill Creator Creator Creator (SCCC):** A skill that creates Skill Creator Creators. Following it produces a level-1 skill.
-- **Level N — SC^(N+1):** A skill that creates level-(N-1) skills. The name has (N+1) occurrences of "Creator" after "Skill".
+- **Level 1 — Skill Creator (SC):** A skill that creates arbitrary skills. When someone follows this skill's instructions, they produce a new skill (any kind).
+- **Level 2 — Skill Creator Creator (SCC):** A skill that creates Skill Creators. When someone follows this skill's instructions, they produce a level-1 skill (a Skill Creator).
+- **Level 3 — Skill Creator Creator Creator (SCCC):** A skill that creates Skill Creator Creators. Following it produces a level-2 skill.
+- **Level N — SC^N:** A skill that creates level-(N-1) skills. The name has N occurrences of "Creator" after "Skill".
 
 ## What a Valid SKILL.md Looks Like
 
@@ -55,9 +55,9 @@ Rules:
 3. Write a SKILL.md whose **instructions, when followed, would produce a skill of the level one below the target**.
 
 For example:
-- If the target is level 2 (SCCC), the generated SKILL.md's instructions should guide someone to create a level-1 skill (SCC).
-- If the target is level 1 (SCC), the generated SKILL.md's instructions should guide someone to create a level-0 skill (SC).
-- If the target is level 0 (SC), the generated SKILL.md's instructions should guide someone to create an arbitrary skill.
+- If the target is level 3 (SCCC), the generated SKILL.md's instructions should guide someone to create a level-2 skill (SCC).
+- If the target is level 2 (SCC), the generated SKILL.md's instructions should guide someone to create a level-1 skill (SC).
+- If the target is level 1 (SC), the generated SKILL.md's instructions should guide someone to create an arbitrary skill.
 
 The key insight: each level's instructions must clearly describe what the output skill should do, and that description must encode the correct meta-level semantics.
 
