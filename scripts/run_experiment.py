@@ -14,6 +14,7 @@ Usage:
 
 import argparse
 import json
+import logging
 import os
 import re
 import subprocess
@@ -22,6 +23,12 @@ import tempfile
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Callable, Literal, TypedDict
+
+try:
+    from scripts.result_schema import validate_result
+except ImportError:
+    from result_schema import validate_result
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -33,6 +40,30 @@ DEFAULT_BOOTSTRAP = Path.home() / (
 EXECUTOR_TEMPLATE = PROJECT_ROOT / "agents" / "executor.md"
 JUDGE_TEMPLATE = PROJECT_ROOT / "agents" / "judge.md"
 RUNS_DIR = PROJECT_ROOT / "runs"
+
+logger = logging.getLogger("skillception")
+logger.setLevel(logging.DEBUG)
+
+
+def setup_run_logger(run_dir: Path) -> logging.FileHandler:
+    """Add a file handler that writes errors to <run_dir>/errors.log.
+
+    Returns the handler so the caller can remove it when the run is done.
+    """
+    run_dir.mkdir(parents=True, exist_ok=True)
+    handler = logging.FileHandler(run_dir / "errors.log", encoding="utf-8")
+    handler.setLevel(logging.WARNING)
+    handler.setFormatter(logging.Formatter(
+        "%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S"
+    ))
+    logger.addHandler(handler)
+    return handler
+
+
+class ClaudeResponse(TypedDict):
+    result: str
+    token_usage: dict | None
+    error: str | None  # None = success, str = failure description
 
 
 def make_env():
@@ -56,14 +87,15 @@ def level_slug(level: int) -> str:
 
 def call_claude(prompt: str, allowed_tools: str | None = None,
                 timeout: int = 300, model: str | None = None,
-                tmp_dir: Path | None = None) -> dict:
+                tmp_dir: Path | None = None,
+                runner: Callable[..., subprocess.CompletedProcess] | None = None) -> ClaudeResponse:
     """Call claude -p and return the parsed JSON envelope.
 
     Writes the prompt to a temp file to avoid Windows command-line length
     limits, then tells Claude to read and follow the instructions in that file.
 
-    Returns dict with keys: result (str), usage (dict or None).
-    On failure, returns {"result": "", "error": str}.
+    Returns ClaudeResponse with keys: result, token_usage, error.
+    error is None on success, a description string on failure.
     """
     # Write prompt to temp file (Windows command line can't handle long args)
     effective_tmp = tmp_dir or PROJECT_ROOT
@@ -91,8 +123,9 @@ def call_claude(prompt: str, allowed_tools: str | None = None,
         if allowed_tools:
             cmd.extend(["--allowedTools", allowed_tools])
 
+        run = runner or subprocess.run
         try:
-            proc = subprocess.run(
+            proc = run(
                 cmd,
                 capture_output=True,
                 text=True,
@@ -101,10 +134,15 @@ def call_claude(prompt: str, allowed_tools: str | None = None,
                 env=make_env(),
             )
         except subprocess.TimeoutExpired:
-            return {"result": "", "error": "timeout"}
+            logger.warning("claude -p timed out after %ds | model=%s tools=%s",
+                           timeout, model, allowed_tools)
+            return {"result": "", "token_usage": None, "error": "timeout"}
 
         if proc.returncode != 0:
-            return {"result": "", "error": proc.stderr[:500] if proc.stderr else f"exit code {proc.returncode}"}
+            stderr_snippet = proc.stderr[:500] if proc.stderr else f"exit code {proc.returncode}"
+            logger.warning("claude -p failed (rc=%d) | model=%s tools=%s\nstderr: %s",
+                           proc.returncode, model, allowed_tools, proc.stderr or "(empty)")
+            return {"result": "", "token_usage": None, "error": stderr_snippet}
 
         # Parse the JSON envelope
         try:
@@ -126,37 +164,69 @@ def call_claude(prompt: str, allowed_tools: str | None = None,
             return {
                 "result": envelope.get("result", ""),
                 "token_usage": token_usage,
+                "error": None,
             }
         except json.JSONDecodeError:
             # Fallback: treat raw stdout as the result
-            return {"result": proc.stdout, "token_usage": None}
+            return {"result": proc.stdout, "token_usage": None, "error": None}
     finally:
         prompt_file.unlink(missing_ok=True)
 
 
 def extract_json(text: str) -> dict | None:
-    """Extract a JSON object from text, handling surrounding prose."""
-    # Try parsing the whole thing first
-    text = text.strip()
+    """Extract a JSON object from text, handling surrounding prose.
+
+    Pipeline:
+      1. Try json.loads on the full stripped text (fast path).
+      2. Strip markdown code fences and try json.loads on each fenced block.
+      3. Use json.JSONDecoder().raw_decode() scanning from each '{' position.
+      4. Return the first object containing "detected_level", or None.
+    """
+    stripped = text.strip()
+
+    # --- Stage 1: full text fast path ---
     try:
-        return json.loads(text)
-    except json.JSONDecodeError:
+        obj = json.loads(stripped)
+        if isinstance(obj, dict):
+            return obj
+    except (json.JSONDecodeError, ValueError):
         pass
 
-    # Try each {...} block in the text (allow nested braces for reasoning strings)
-    for match in re.finditer(r'\{.*?\}', text, re.DOTALL):
+    # --- Stage 2: markdown code fences ---
+    fence_pattern = re.compile(r'```(?:json)?\s*\n(.*?)\n\s*```', re.DOTALL)
+    for match in fence_pattern.finditer(stripped):
         try:
-            obj = json.loads(match.group())
-            if "detected_level" in obj:
+            obj = json.loads(match.group(1).strip())
+            if isinstance(obj, dict) and "detected_level" in obj:
                 return obj
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, ValueError):
             continue
 
-    return None
+    # --- Stage 3: raw_decode from each '{' ---
+    decoder = json.JSONDecoder()
+    candidates: list[dict] = []
+    idx = 0
+    while idx < len(stripped):
+        pos = stripped.find('{', idx)
+        if pos == -1:
+            break
+        try:
+            obj, end = decoder.raw_decode(stripped, pos)
+            if isinstance(obj, dict):
+                if "detected_level" in obj:
+                    return obj
+                candidates.append(obj)
+            idx = end
+        except (json.JSONDecodeError, ValueError):
+            idx = pos + 1
+
+    # Return the first dict candidate even without "detected_level", or None
+    return candidates[0] if candidates else None
 
 
 def run_executor(source_content: str, target_level: int,
-                 output_dir: Path, model: str | None = None) -> dict:
+                 output_dir: Path, model: str | None = None,
+                 runner: Callable[..., subprocess.CompletedProcess] | None = None) -> dict:
     """Run the executor agent to generate a skill at the target level.
 
     Returns dict with keys: success (bool), output_path (str),
@@ -204,9 +274,10 @@ The output directory already exists. Write the SKILL.md to: {output_path_str}
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     response = call_claude(prompt, allowed_tools="Read,Write", model=model,
-                           tmp_dir=output_dir)
+                           tmp_dir=output_dir, runner=runner)
 
-    if "error" in response:
+    if response["error"] is not None:
+        logger.warning("Executor call failed for level %d: %s", target_level, response["error"])
         return {"success": False, "output_path": str(output_path),
                 "token_usage": None, "error": response["error"]}
 
@@ -215,16 +286,18 @@ The output directory already exists. Write the SKILL.md to: {output_path_str}
         return {"success": True, "output_path": str(output_path),
                 "token_usage": response.get("token_usage"), "error": None}
 
+    logger.warning("Executor did not write output file for level %d: %s", target_level, output_path)
     return {"success": False, "output_path": str(output_path),
             "token_usage": response.get("token_usage"),
             "error": "executor did not write output file"}
 
 
 def run_judge(skill_content: str, model: str | None = None,
-              run_dir: Path | None = None) -> dict:
+              run_dir: Path | None = None,
+              runner: Callable[..., subprocess.CompletedProcess] | None = None) -> dict:
     """Run the judge agent to blindly detect the meta-level.
 
-    Returns dict with keys: detected_level (int), reasoning (str),
+    Returns dict with keys: detected_level (int | None), reasoning (str),
     token_usage (dict or None), error (str or None).
     """
     judge_instructions = JUDGE_TEMPLATE.read_text(encoding="utf-8")
@@ -238,10 +311,11 @@ def run_judge(skill_content: str, model: str | None = None,
 {skill_content}
 """
 
-    response = call_claude(prompt, model=model, tmp_dir=run_dir)
+    response = call_claude(prompt, model=model, tmp_dir=run_dir, runner=runner)
 
-    if "error" in response:
-        return {"detected_level": -1, "reasoning": "",
+    if response["error"] is not None:
+        logger.warning("Judge call failed: %s", response["error"])
+        return {"detected_level": None, "reasoning": "",
                 "token_usage": None, "error": response["error"]}
 
     parsed = extract_json(response["result"])
@@ -253,7 +327,9 @@ def run_judge(skill_content: str, model: str | None = None,
             "error": None,
         }
 
-    return {"detected_level": -1, "reasoning": "",
+    raw_preview = response["result"][:500]
+    logger.warning("Judge response unparseable:\n%s", raw_preview)
+    return {"detected_level": None, "reasoning": "",
             "token_usage": response.get("token_usage"),
             "error": f"could not parse judge response: {response['result'][:200]}"}
 
@@ -278,14 +354,33 @@ def sum_token_usage(steps: list[dict]) -> dict:
     return total
 
 
+EXECUTOR_RETRIES = 2
 JUDGE_RETRIES = 2
 
 
+def run_executor_with_retries(source_content: str, target_level: int,
+                              output_dir: Path, model: str | None = None,
+                              runner: Callable[..., subprocess.CompletedProcess] | None = None) -> dict:
+    """Run the executor, retrying up to EXECUTOR_RETRIES times on errors."""
+    for attempt in range(1 + EXECUTOR_RETRIES):
+        exec_result = run_executor(source_content, target_level, output_dir,
+                                   model=model, runner=runner)
+        if exec_result["success"]:
+            return exec_result
+        if attempt < EXECUTOR_RETRIES:
+            print(f"    Executor error (attempt {attempt + 1}/{1 + EXECUTOR_RETRIES}), retrying: {exec_result.get('error')}")
+        else:
+            print(f"    Executor error (attempt {attempt + 1}/{1 + EXECUTOR_RETRIES}), all retries exhausted: {exec_result.get('error')}")
+    return exec_result
+
+
 def run_judge_with_retries(skill_content: str, model: str | None = None,
-                           run_dir: Path | None = None) -> dict:
+                           run_dir: Path | None = None,
+                           runner: Callable[..., subprocess.CompletedProcess] | None = None) -> dict:
     """Run the judge, retrying up to JUDGE_RETRIES times on errors."""
     for attempt in range(1 + JUDGE_RETRIES):
-        judge_result = run_judge(skill_content, model=model, run_dir=run_dir)
+        judge_result = run_judge(skill_content, model=model, run_dir=run_dir,
+                                 runner=runner)
         if not judge_result.get("error"):
             return judge_result
         if attempt < JUDGE_RETRIES:
@@ -295,12 +390,210 @@ def run_judge_with_retries(skill_content: str, model: str | None = None,
     return judge_result
 
 
+def _run_step(source_content: str, source_path: str, source_level: int,
+              target_level: int, direction: str, round_num: int,
+              step_index: int,
+              executor: Callable[[str, int, int], dict],
+              judge: Callable[[str], dict]) -> tuple[dict, str | None]:
+    """Run one executor+judge step and return (step_record, generated_content).
+
+    generated_content is None if the step failed.
+    """
+    print(f"  Step {step_index + 1}: {direction.title()} — {level_name(source_level)} → {level_name(target_level)}")
+
+    exec_result = executor(source_content, target_level, step_index)
+
+    step_record = {
+        "step_index": step_index,
+        "round": round_num,
+        "direction": direction,
+        "source_level": source_level,
+        "target_level": target_level,
+        "source_path": source_path,
+        "output_path": exec_result.get("output_path", ""),
+        "passed": False,
+        "executor_usage": exec_result.get("token_usage"),
+    }
+
+    if not exec_result["success"]:
+        step_record["judge_result"] = None
+        step_record["expected_level"] = target_level
+        step_record["judge_usage"] = None
+        return step_record, None
+
+    generated_content = exec_result["output_content"]
+    judge_result = judge(generated_content)
+
+    step_record["judge_result"] = {
+        "detected_level": judge_result["detected_level"],
+        "reasoning": judge_result["reasoning"],
+    }
+    step_record["expected_level"] = target_level
+    step_record["judge_usage"] = judge_result.get("token_usage")
+
+    if not judge_result.get("error"):
+        step_record["passed"] = judge_result["detected_level"] == target_level
+
+    # Preserve judge error string for caller to classify (not stored in result.json)
+    step_record["_judge_error"] = judge_result.get("error")
+
+    return step_record, generated_content
+
+
+ErrorKind = Literal[False, "call", "parse"]
+
+
+def _make_failure(round_num: int, step_index: int, expected: int,
+                  detected, reasoning: str, error: ErrorKind) -> dict:
+    """Build a failure record."""
+    return {
+        "round": round_num,
+        "step_index": step_index,
+        "expected_level": expected,
+        "detected_level": detected,
+        "reasoning": reasoning,
+        "error": error,
+    }
+
+
+def _classify_judge_error(judge_error: str | None) -> ErrorKind:
+    """Classify a judge error string into 'call' or 'parse'."""
+    if judge_error and judge_error.startswith("could not parse"):
+        return "parse"
+    return "call"
+
+
+def run_rounds(
+    bootstrap_content: str,
+    bootstrap_path: str,
+    max_rounds: int,
+    executor: Callable[[str, int, int], dict],
+    judge: Callable[[str], dict],
+) -> dict:
+    """Run the ascent/descent state machine and return the result dict.
+
+    executor signature: (source_content, target_level, step_index) -> dict
+      Returns: {"success": bool, "output_path": str, "output_content": str | None,
+                "token_usage": dict | None, "error": str | None}
+
+    judge signature: (skill_content) -> dict
+      Returns: {"detected_level": int | None, "reasoning": str,
+                "token_usage": dict | None, "error": str | None}
+
+    Returns a partial result dict (steps, failure, max_round, total_steps,
+    total_usage). The caller adds run_id, model, timestamp, etc.
+    """
+    steps: list[dict] = []
+    current_sc_content = bootstrap_content
+    current_sc_path = bootstrap_path
+    step_index = 0
+    max_round_reached = 0
+
+    def _finish(failure=None):
+        # Strip internal keys before serialization
+        for s in steps:
+            s.pop("_judge_error", None)
+        return {
+            "max_round": max_round_reached,
+            "total_steps": len(steps),
+            "steps": steps,
+            "failure": failure,
+            "total_usage": sum_token_usage(steps),
+        }
+
+    for round_num in range(1, max_rounds + 1):
+        target_ascent_level = round_num + 1
+        print(f"\n--- Round {round_num} (ascend to level {target_ascent_level}, then descend) ---")
+
+        # === ASCENT ===
+        step_record, gen_content = _run_step(
+            current_sc_content, current_sc_path, 1, target_ascent_level,
+            "ascent", round_num, step_index, executor, judge)
+        steps.append(step_record)
+
+        if gen_content is None:  # executor failed
+            print(f"    FAIL (executor)")
+            return _finish(_make_failure(
+                round_num, step_index, target_ascent_level, None,
+                "executor failed",
+                error="call"))
+
+        judge_res = step_record["judge_result"]
+        step_index += 1
+
+        if not step_record["passed"]:
+            detected = judge_res["detected_level"]
+            reasoning = judge_res["reasoning"]
+            if detected is None:
+                error = _classify_judge_error(step_record.get("_judge_error"))
+                print(f"    FAIL (judge {error})")
+            else:
+                error: ErrorKind = False
+                print(f"    FAIL: expected level {target_ascent_level}, got {detected}")
+            return _finish(_make_failure(
+                round_num, step_index - 1, target_ascent_level,
+                detected, reasoning, error=error))
+
+        print(f"    PASS (level {judge_res['detected_level']})")
+
+        # === DESCENT ===
+        descent_source_content = gen_content
+        descent_source_path = step_record["output_path"]
+        descent_source_level = target_ascent_level
+
+        for descent_target in range(target_ascent_level - 1, 0, -1):
+            step_record, gen_content = _run_step(
+                descent_source_content, descent_source_path,
+                descent_source_level, descent_target,
+                "descent", round_num, step_index, executor, judge)
+            steps.append(step_record)
+
+            if gen_content is None:  # executor failed
+                print(f"    FAIL (executor)")
+                return _finish(_make_failure(
+                    round_num, step_index, descent_target, None,
+                    "executor failed",
+                    error="call"))
+
+            judge_res = step_record["judge_result"]
+            step_index += 1
+
+            if not step_record["passed"]:
+                detected = judge_res["detected_level"]
+                reasoning = judge_res["reasoning"]
+                if detected is None:
+                    error = _classify_judge_error(step_record.get("_judge_error"))
+                    print(f"    FAIL (judge {error})")
+                else:
+                    error: ErrorKind = False
+                    print(f"    FAIL: expected level {descent_target}, got {detected}")
+                return _finish(_make_failure(
+                    round_num, step_index - 1, descent_target,
+                    detected, reasoning, error=error))
+
+            print(f"    PASS (level {judge_res['detected_level']})")
+
+            descent_source_content = gen_content
+            descent_source_path = step_record["output_path"]
+            descent_source_level = descent_target
+
+        # Round completed
+        current_sc_content = descent_source_content
+        current_sc_path = descent_source_path
+        max_round_reached = round_num
+        print(f"  Round {round_num} complete!")
+
+    print(f"\nRun complete. Reached round {max_round_reached}. Total steps: {step_index}.")
+    return _finish()
+
+
 def run_single_experiment(run_id: str, bootstrap_path: Path,
                           max_rounds: int, model: str | None = None,
                           judge_model: str | None = None) -> dict:
     """Execute one full experiment run.
 
-    Returns a result dict matching the schema in the plan.
+    Thin orchestrator that wires up real executor/judge calls and
+    filesystem I/O, then delegates to run_rounds() for the state machine.
     """
     print(f"\n{'='*60}")
     print(f"Run {run_id} (model: {model or 'default'})")
@@ -309,209 +602,39 @@ def run_single_experiment(run_id: str, bootstrap_path: Path,
     bootstrap_content = bootstrap_path.read_text(encoding="utf-8")
     run_dir = RUNS_DIR / run_id
     skills_dir = run_dir / "skills"
+    log_handler = setup_run_logger(run_dir)
 
-    result = {
+    def executor(source_content: str, target_level: int, step_index: int) -> dict:
+        step_dir = skills_dir / f"step-{step_index:02d}"
+        result = run_executor_with_retries(source_content, target_level, step_dir, model=model)
+        if result["success"]:
+            result["output_content"] = Path(result["output_path"]).read_text(encoding="utf-8")
+        else:
+            result["output_content"] = None
+        return result
+
+    def judge(skill_content: str) -> dict:
+        return run_judge_with_retries(skill_content, model=judge_model, run_dir=run_dir)
+
+    try:
+        rounds_result = run_rounds(
+            bootstrap_content, str(bootstrap_path), max_rounds,
+            executor, judge)
+    finally:
+        logger.removeHandler(log_handler)
+        log_handler.close()
+        # Clean up empty error logs (no warnings = no errors)
+        error_log = run_dir / "errors.log"
+        if error_log.exists() and error_log.stat().st_size == 0:
+            error_log.unlink()
+
+    return {
         "run_id": run_id,
         "model": model or "default",
         "judge_model": judge_model or "default",
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "max_round": 0,
-        "total_steps": 0,
-        "steps": [],
-        "failure": None,
+        **rounds_result,
     }
-
-    # The "current SC" — the level-1 skill used to start each round
-    current_sc_content = bootstrap_content
-    current_sc_path = str(bootstrap_path)
-    step_index = 0
-
-    for round_num in range(1, max_rounds + 1):
-        target_ascent_level = round_num + 1
-        print(f"\n--- Round {round_num} (ascend to level {target_ascent_level}, then descend) ---")
-
-        # === ASCENT: current SC creates a skill of level (round+1) ===
-        print(f"  Step {step_index + 1}: Ascent — {level_name(1)} → {level_name(target_ascent_level)}")
-
-        step_dir = skills_dir / f"step-{step_index:02d}"
-        exec_result = run_executor(current_sc_content, target_ascent_level, step_dir, model=model)
-
-        step_record = {
-            "step_index": step_index,
-            "round": round_num,
-            "direction": "ascent",
-            "source_level": 1,
-            "target_level": target_ascent_level,
-            "source_path": current_sc_path,
-            "output_path": exec_result["output_path"],
-            "passed": False,
-        }
-
-        step_record["executor_usage"] = exec_result.get("token_usage")
-
-        if not exec_result["success"]:
-            step_record["judge_result"] = None
-            step_record["expected_level"] = target_ascent_level
-            result["steps"].append(step_record)
-            result["failure"] = {
-                "round": round_num,
-                "step_index": step_index,
-                "expected_level": target_ascent_level,
-                "detected_level": -1,
-                "reasoning": f"executor failed: {exec_result['error']}",
-            }
-            result["total_steps"] = step_index + 1
-            print(f"    FAIL (executor): {exec_result['error']}")
-            result["total_usage"] = sum_token_usage(result["steps"])
-            return result
-
-        # Judge the ascent output
-        generated_content = Path(exec_result["output_path"]).read_text(encoding="utf-8")
-        judge_result = run_judge_with_retries(generated_content, model=judge_model, run_dir=run_dir)
-
-        step_record["judge_result"] = {
-            "detected_level": judge_result["detected_level"],
-            "reasoning": judge_result["reasoning"],
-        }
-        step_record["expected_level"] = target_ascent_level
-
-        step_record["judge_usage"] = judge_result.get("token_usage")
-
-        if judge_result.get("error"):
-            result["steps"].append(step_record)
-            result["failure"] = {
-                "round": round_num,
-                "step_index": step_index,
-                "expected_level": target_ascent_level,
-                "detected_level": -1,
-                "reasoning": f"judge error: {judge_result['error']}",
-            }
-            result["total_steps"] = step_index + 1
-            print(f"    FAIL (judge error): {judge_result['error']}")
-            result["total_usage"] = sum_token_usage(result["steps"])
-            return result
-
-        passed = judge_result["detected_level"] == target_ascent_level
-        step_record["passed"] = passed
-        result["steps"].append(step_record)
-        step_index += 1
-
-        if not passed:
-            result["failure"] = {
-                "round": round_num,
-                "step_index": step_index - 1,
-                "expected_level": target_ascent_level,
-                "detected_level": judge_result["detected_level"],
-                "reasoning": judge_result["reasoning"],
-            }
-            result["total_steps"] = step_index
-            print(f"    FAIL: expected level {target_ascent_level}, got {judge_result['detected_level']}")
-            result["total_usage"] = sum_token_usage(result["steps"])
-            return result
-
-        print(f"    PASS (level {judge_result['detected_level']})")
-
-        # === DESCENT: cascade from level (round+1) down to level 1 ===
-        descent_source_content = generated_content
-        descent_source_path = exec_result["output_path"]
-        descent_source_level = target_ascent_level
-
-        for descent_target in range(target_ascent_level - 1, 0, -1):
-            print(f"  Step {step_index + 1}: Descent — {level_name(descent_source_level)} → {level_name(descent_target)}")
-
-            step_dir = skills_dir / f"step-{step_index:02d}"
-            exec_result = run_executor(descent_source_content, descent_target, step_dir, model=model)
-
-            step_record = {
-                "step_index": step_index,
-                "round": round_num,
-                "direction": "descent",
-                "source_level": descent_source_level,
-                "target_level": descent_target,
-                "source_path": descent_source_path,
-                "output_path": exec_result["output_path"],
-                "passed": False,
-            }
-
-            step_record["executor_usage"] = exec_result.get("token_usage")
-
-            if not exec_result["success"]:
-                step_record["judge_result"] = None
-                step_record["expected_level"] = descent_target
-                result["steps"].append(step_record)
-                result["failure"] = {
-                    "round": round_num,
-                    "step_index": step_index,
-                    "expected_level": descent_target,
-                    "detected_level": -1,
-                    "reasoning": f"executor failed: {exec_result['error']}",
-                }
-                result["total_steps"] = step_index + 1
-                print(f"    FAIL (executor): {exec_result['error']}")
-                result["total_usage"] = sum_token_usage(result["steps"])
-                return result
-
-            generated_content = Path(exec_result["output_path"]).read_text(encoding="utf-8")
-            judge_result = run_judge_with_retries(generated_content, model=judge_model, run_dir=run_dir)
-
-            step_record["judge_result"] = {
-                "detected_level": judge_result["detected_level"],
-                "reasoning": judge_result["reasoning"],
-            }
-            step_record["expected_level"] = descent_target
-
-            step_record["judge_usage"] = judge_result.get("token_usage")
-
-            if judge_result.get("error"):
-                result["steps"].append(step_record)
-                result["failure"] = {
-                    "round": round_num,
-                    "step_index": step_index,
-                    "expected_level": descent_target,
-                    "detected_level": -1,
-                    "reasoning": f"judge error: {judge_result['error']}",
-                }
-                result["total_steps"] = step_index + 1
-                print(f"    FAIL (judge error): {judge_result['error']}")
-                result["total_usage"] = sum_token_usage(result["steps"])
-                return result
-
-            passed = judge_result["detected_level"] == descent_target
-            step_record["passed"] = passed
-            result["steps"].append(step_record)
-            step_index += 1
-
-            if not passed:
-                result["failure"] = {
-                    "round": round_num,
-                    "step_index": step_index - 1,
-                    "expected_level": descent_target,
-                    "detected_level": judge_result["detected_level"],
-                    "reasoning": judge_result["reasoning"],
-                }
-                result["total_steps"] = step_index
-                print(f"    FAIL: expected level {descent_target}, got {judge_result['detected_level']}")
-                result["total_usage"] = sum_token_usage(result["steps"])
-                return result
-
-            print(f"    PASS (level {judge_result['detected_level']})")
-
-            # Next descent step uses this output as source
-            descent_source_content = generated_content
-            descent_source_path = exec_result["output_path"]
-            descent_source_level = descent_target
-
-        # Round completed — the final descent output is the new SC for next round
-        current_sc_content = descent_source_content
-        current_sc_path = descent_source_path
-        result["max_round"] = round_num
-
-        print(f"  Round {round_num} complete!")
-
-    result["total_steps"] = step_index
-    print(f"\nRun complete. Reached round {result['max_round']}. Total steps: {step_index}.")
-    result["total_usage"] = sum_token_usage(result["steps"])
-    return result
 
 
 def main():
@@ -539,6 +662,13 @@ def main():
     for i in range(args.runs):
         run_id = str(uuid.uuid4())[:8]
         result = run_single_experiment(run_id, args.bootstrap, args.max_rounds, model=args.model, judge_model=args.judge_model)
+
+        # Validate result against schema before saving
+        schema_errors = validate_result(result)
+        if schema_errors:
+            print(f"WARNING: result failed schema validation:", file=sys.stderr)
+            for err in schema_errors:
+                print(f"  - {err}", file=sys.stderr)
 
         # Save result
         run_dir = RUNS_DIR / run_id
