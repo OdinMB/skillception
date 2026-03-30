@@ -30,11 +30,11 @@ Be careful with off-by-one errors. A skill that **is** a skill creator is level 
 
 ## If the Skill Is Incoherent
 
-If the skill's instructions are too confused, contradictory, or vague to determine a clear meta-level, set `detected_level` to -1.
+If the skill's instructions are too confused, contradictory, or vague to determine a clear meta-level, set `detected_level` to -1. Similarly, if the document's instructions would not produce any SKILL.md at all (i.e., it is not a skill-creation task), treat it as incoherent and return -1.
 
 ## Your Output
 
-Respond with ONLY a JSON object. No prose before or after. No markdown code fences. Escape any double quotes inside the reasoning string.
+Respond with ONLY a JSON object. No prose before or after. No markdown code fences.
 
 Example:
 {"detected_level": 2, "reasoning": "The skill instructs the user to create a \"skill creator\", which is level 1. Therefore this skill is level 2."}

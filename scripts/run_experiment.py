@@ -68,9 +68,11 @@ def call_claude(prompt: str, allowed_tools: str | None = None,
     # Write prompt to temp file (Windows command line can't handle long args)
     effective_tmp = tmp_dir or PROJECT_ROOT
     effective_tmp.mkdir(parents=True, exist_ok=True)
-    prompt_file = Path(tempfile.mktemp(suffix=".md", dir=str(effective_tmp)))
+    fd, prompt_file_str = tempfile.mkstemp(suffix=".md", dir=str(effective_tmp))
+    prompt_file = Path(prompt_file_str)
     try:
-        prompt_file.write_text(prompt, encoding="utf-8")
+        os.write(fd, prompt.encode("utf-8"))
+        os.close(fd)
         prompt_path_str = str(prompt_file).replace("\\", "/")
 
         short_prompt = (
@@ -107,13 +109,27 @@ def call_claude(prompt: str, allowed_tools: str | None = None,
         # Parse the JSON envelope
         try:
             envelope = json.loads(proc.stdout)
+            # Extract per-model token breakdown from modelUsage
+            token_usage = None
+            model_usage = envelope.get("modelUsage")
+            if model_usage:
+                # Sum across all models (normally just one)
+                token_usage = {
+                    "inputTokens": 0,
+                    "outputTokens": 0,
+                    "cacheReadInputTokens": 0,
+                    "cacheCreationInputTokens": 0,
+                }
+                for counts in model_usage.values():
+                    for key in token_usage:
+                        token_usage[key] += counts.get(key, 0)
             return {
                 "result": envelope.get("result", ""),
-                "usage": envelope.get("usage"),
+                "token_usage": token_usage,
             }
         except json.JSONDecodeError:
             # Fallback: treat raw stdout as the result
-            return {"result": proc.stdout, "usage": None}
+            return {"result": proc.stdout, "token_usage": None}
     finally:
         prompt_file.unlink(missing_ok=True)
 
@@ -127,8 +143,8 @@ def extract_json(text: str) -> dict | None:
     except json.JSONDecodeError:
         pass
 
-    # Try each {...} block in the text
-    for match in re.finditer(r'\{[^{}]*\}', text):
+    # Try each {...} block in the text (allow nested braces for reasoning strings)
+    for match in re.finditer(r'\{.*?\}', text, re.DOTALL):
         try:
             obj = json.loads(match.group())
             if "detected_level" in obj:
@@ -144,7 +160,7 @@ def run_executor(source_content: str, target_level: int,
     """Run the executor agent to generate a skill at the target level.
 
     Returns dict with keys: success (bool), output_path (str),
-    usage (dict or None), error (str or None).
+    token_usage (dict or None), error (str or None).
     """
     executor_instructions = EXECUTOR_TEMPLATE.read_text(encoding="utf-8")
     output_path = output_dir / level_slug(target_level) / "SKILL.md"
@@ -192,15 +208,15 @@ The output directory already exists. Write the SKILL.md to: {output_path_str}
 
     if "error" in response:
         return {"success": False, "output_path": str(output_path),
-                "usage": None, "error": response["error"]}
+                "token_usage": None, "error": response["error"]}
 
     # Check if the file was written
     if output_path.exists():
         return {"success": True, "output_path": str(output_path),
-                "usage": response.get("usage"), "error": None}
+                "token_usage": response.get("token_usage"), "error": None}
 
     return {"success": False, "output_path": str(output_path),
-            "usage": response.get("usage"),
+            "token_usage": response.get("token_usage"),
             "error": "executor did not write output file"}
 
 
@@ -209,7 +225,7 @@ def run_judge(skill_content: str, model: str | None = None,
     """Run the judge agent to blindly detect the meta-level.
 
     Returns dict with keys: detected_level (int), reasoning (str),
-    usage (dict or None), error (str or None).
+    token_usage (dict or None), error (str or None).
     """
     judge_instructions = JUDGE_TEMPLATE.read_text(encoding="utf-8")
 
@@ -222,25 +238,44 @@ def run_judge(skill_content: str, model: str | None = None,
 {skill_content}
 """
 
-    response = call_claude(prompt, allowed_tools="Read", model=model,
-                           tmp_dir=run_dir)
+    response = call_claude(prompt, model=model, tmp_dir=run_dir)
 
     if "error" in response:
         return {"detected_level": -1, "reasoning": "",
-                "usage": None, "error": response["error"]}
+                "token_usage": None, "error": response["error"]}
 
     parsed = extract_json(response["result"])
     if parsed and "detected_level" in parsed:
         return {
             "detected_level": parsed["detected_level"],
             "reasoning": parsed.get("reasoning", ""),
-            "usage": response.get("usage"),
+            "token_usage": response.get("token_usage"),
             "error": None,
         }
 
     return {"detected_level": -1, "reasoning": "",
-            "usage": response.get("usage"),
+            "token_usage": response.get("token_usage"),
             "error": f"could not parse judge response: {response['result'][:200]}"}
+
+
+EMPTY_USAGE = {
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "cacheReadInputTokens": 0,
+    "cacheCreationInputTokens": 0,
+}
+
+
+def sum_token_usage(steps: list[dict]) -> dict:
+    """Sum executor_usage and judge_usage across all steps."""
+    total = dict(EMPTY_USAGE)
+    for step in steps:
+        for key in ("executor_usage", "judge_usage"):
+            usage = step.get(key)
+            if usage:
+                for field in total:
+                    total[field] += usage.get(field, 0)
+    return total
 
 
 JUDGE_RETRIES = 2
@@ -254,7 +289,9 @@ def run_judge_with_retries(skill_content: str, model: str | None = None,
         if not judge_result.get("error"):
             return judge_result
         if attempt < JUDGE_RETRIES:
-            print(f"    Judge error (attempt {attempt + 1}), retrying: {judge_result['error']}")
+            print(f"    Judge error (attempt {attempt + 1}/{1 + JUDGE_RETRIES}), retrying: {judge_result['error']}")
+        else:
+            print(f"    Judge error (attempt {attempt + 1}/{1 + JUDGE_RETRIES}), all retries exhausted: {judge_result['error']}")
     return judge_result
 
 
@@ -310,8 +347,7 @@ def run_single_experiment(run_id: str, bootstrap_path: Path,
             "passed": False,
         }
 
-        if exec_result.get("usage"):
-            step_record["executor_tokens"] = exec_result["usage"].get("total_tokens")
+        step_record["executor_usage"] = exec_result.get("token_usage")
 
         if not exec_result["success"]:
             step_record["judge_result"] = None
@@ -326,6 +362,7 @@ def run_single_experiment(run_id: str, bootstrap_path: Path,
             }
             result["total_steps"] = step_index + 1
             print(f"    FAIL (executor): {exec_result['error']}")
+            result["total_usage"] = sum_token_usage(result["steps"])
             return result
 
         # Judge the ascent output
@@ -338,8 +375,7 @@ def run_single_experiment(run_id: str, bootstrap_path: Path,
         }
         step_record["expected_level"] = target_ascent_level
 
-        if judge_result.get("usage"):
-            step_record["judge_tokens"] = judge_result["usage"].get("total_tokens")
+        step_record["judge_usage"] = judge_result.get("token_usage")
 
         if judge_result.get("error"):
             result["steps"].append(step_record)
@@ -352,6 +388,7 @@ def run_single_experiment(run_id: str, bootstrap_path: Path,
             }
             result["total_steps"] = step_index + 1
             print(f"    FAIL (judge error): {judge_result['error']}")
+            result["total_usage"] = sum_token_usage(result["steps"])
             return result
 
         passed = judge_result["detected_level"] == target_ascent_level
@@ -369,6 +406,7 @@ def run_single_experiment(run_id: str, bootstrap_path: Path,
             }
             result["total_steps"] = step_index
             print(f"    FAIL: expected level {target_ascent_level}, got {judge_result['detected_level']}")
+            result["total_usage"] = sum_token_usage(result["steps"])
             return result
 
         print(f"    PASS (level {judge_result['detected_level']})")
@@ -395,8 +433,7 @@ def run_single_experiment(run_id: str, bootstrap_path: Path,
                 "passed": False,
             }
 
-            if exec_result.get("usage"):
-                step_record["executor_tokens"] = exec_result["usage"].get("total_tokens")
+            step_record["executor_usage"] = exec_result.get("token_usage")
 
             if not exec_result["success"]:
                 step_record["judge_result"] = None
@@ -411,6 +448,7 @@ def run_single_experiment(run_id: str, bootstrap_path: Path,
                 }
                 result["total_steps"] = step_index + 1
                 print(f"    FAIL (executor): {exec_result['error']}")
+                result["total_usage"] = sum_token_usage(result["steps"])
                 return result
 
             generated_content = Path(exec_result["output_path"]).read_text(encoding="utf-8")
@@ -422,8 +460,7 @@ def run_single_experiment(run_id: str, bootstrap_path: Path,
             }
             step_record["expected_level"] = descent_target
 
-            if judge_result.get("usage"):
-                step_record["judge_tokens"] = judge_result["usage"].get("total_tokens")
+            step_record["judge_usage"] = judge_result.get("token_usage")
 
             if judge_result.get("error"):
                 result["steps"].append(step_record)
@@ -436,6 +473,7 @@ def run_single_experiment(run_id: str, bootstrap_path: Path,
                 }
                 result["total_steps"] = step_index + 1
                 print(f"    FAIL (judge error): {judge_result['error']}")
+                result["total_usage"] = sum_token_usage(result["steps"])
                 return result
 
             passed = judge_result["detected_level"] == descent_target
@@ -453,6 +491,7 @@ def run_single_experiment(run_id: str, bootstrap_path: Path,
                 }
                 result["total_steps"] = step_index
                 print(f"    FAIL: expected level {descent_target}, got {judge_result['detected_level']}")
+                result["total_usage"] = sum_token_usage(result["steps"])
                 return result
 
             print(f"    PASS (level {judge_result['detected_level']})")
@@ -471,6 +510,7 @@ def run_single_experiment(run_id: str, bootstrap_path: Path,
 
     result["total_steps"] = step_index
     print(f"\nRun complete. Reached round {result['max_round']}. Total steps: {step_index}.")
+    result["total_usage"] = sum_token_usage(result["steps"])
     return result
 
 

@@ -47,6 +47,8 @@ def main():
         print(f"ERROR: Runs directory not found: {args.runs_dir}", file=sys.stderr)
         sys.exit(1)
 
+    # Export all runs including error-terminated ones; the website's
+    # discardErrorRuns() filters them client-side so the raw data stays available.
     results = load_and_clean(args.runs_dir)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(results, indent=2), encoding="utf-8")

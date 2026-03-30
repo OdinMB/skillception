@@ -38,7 +38,7 @@ def analyze_group(results: list[dict], label: str):
         return
 
     # Max round distribution
-    max_rounds = [r["max_round"] for r in results]
+    max_rounds = [r.get("max_round", 0) for r in results]
     round_counts = Counter(max_rounds)
 
     print(f"\n## Max Round Reached\n")
@@ -50,7 +50,7 @@ def analyze_group(results: list[dict], label: str):
         print(f"  {row_label:25s} | {bar:30s} {count:3d} ({pct:.0f}%)")
 
     # Failure analysis
-    failures = [r["failure"] for r in results if r["failure"] is not None]
+    failures = [r.get("failure") for r in results if r.get("failure") is not None]
     successes = n - len(failures)
 
     print(f"\n## Summary\n")
@@ -59,7 +59,8 @@ def analyze_group(results: list[dict], label: str):
     print(f"  Failed:              {len(failures)}")
 
     if max_rounds:
-        valid_rounds = [r for r in max_rounds if r >= 1]
+        # Include max_round == 0 (failed during round 1) in statistics
+        valid_rounds = [r for r in max_rounds if r >= 0]
         if valid_rounds:
             print(f"  Mean max round:      {sum(valid_rounds) / len(valid_rounds):.1f}")
             print(f"  Median max round:    {statistics.median(valid_rounds)}")
@@ -100,7 +101,7 @@ def analyze_group(results: list[dict], label: str):
             print(f"  {d:10s}: {p}/{total} passed ({p/total*100:.0f}%)")
 
     # Failure by expected level
-    fail_levels = Counter(f["expected_level"] for f in failures)
+    fail_levels = Counter(f.get("expected_level", -1) for f in failures)
     print(f"\n## Failures by Expected Target Level\n")
     for level in sorted(fail_levels.keys()):
         count = fail_levels[level]
@@ -136,7 +137,7 @@ def analyze_group(results: list[dict], label: str):
 
     if step_stats:
         print(f"\n## Step-Level Success Rates\n")
-        for idx in sorted(step_stats.keys())[:20]:
+        for idx in sorted(step_stats.keys()):
             s = step_stats[idx]
             total = s["passed"] + s["failed"]
             rate = s["passed"] / total * 100
