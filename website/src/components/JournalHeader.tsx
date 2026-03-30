@@ -2,11 +2,7 @@ export default function JournalHeader() {
   return (
     <div className="text-center mb-12">
       <div className="seal">
-        <img src="/academic-logo-v2.png" alt="Dept. of Recursive Skill Studies seal" />
-      </div>
-      <div className="journal-name">Skillception</div>
-      <div className="journal-meta">
-        Proceedings of the Department of Recursive Skill Studies
+        <img src="/academic-logo-v2.png" alt="Dept. of Recursion Studies seal" />
       </div>
       <hr className="title-rule" />
       <div className="article-title">

@@ -107,7 +107,7 @@ The logo is a circular academic seal: `assets/seal.png`
 Pages are styled as published journal articles:
 
 - Max-width ~720px, centered, Paper background with subtle shadow
-- Journal masthead at top: seal, "SKILLCEPTION", "Proceedings of the Dept. of Recursive Skill Studies"
+- Journal masthead at top: seal, "SKILLCEPTION", "Proceedings of the Dept. of Recursion Studies"
 - Article title in Playfair Display 700, subtitle in italic Source Serif
 - Abstract in Aged Paper block with Academic Red left border
 - Numbered sections ("1. Results", "2. Discussion")
@@ -122,7 +122,7 @@ See `assets/results-mockup.html` for the full reference implementation.
 ## Themes & Motifs
 
 - Academic paper layout and apparatus (figures, tables, procedures, footnotes)
-- "Dept. of Recursive Skill Studies" as the fictional institution
+- "Dept. of Recursion Studies" as the fictional institution
 - Bibliography references to nonexistent papers
 - Self-citation (the recursion demands it)
 - Margin notes with dry commentary
