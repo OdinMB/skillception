@@ -294,7 +294,7 @@ def run_single_experiment(run_id: str, bootstrap_path: Path,
         print(f"\n--- Round {round_num} (ascend to level {target_ascent_level}, then descend) ---")
 
         # === ASCENT: current SC creates a skill of level (round+1) ===
-        print(f"  Step {step_index}: Ascent — {level_name(1)} → {level_name(target_ascent_level)}")
+        print(f"  Step {step_index + 1}: Ascent — {level_name(1)} → {level_name(target_ascent_level)}")
 
         step_dir = skills_dir / f"step-{step_index:02d}"
         exec_result = run_executor(current_sc_content, target_ascent_level, step_dir, model=model)
@@ -379,7 +379,7 @@ def run_single_experiment(run_id: str, bootstrap_path: Path,
         descent_source_level = target_ascent_level
 
         for descent_target in range(target_ascent_level - 1, 0, -1):
-            print(f"  Step {step_index}: Descent — {level_name(descent_source_level)} → {level_name(descent_target)}")
+            print(f"  Step {step_index + 1}: Descent — {level_name(descent_source_level)} → {level_name(descent_target)}")
 
             step_dir = skills_dir / f"step-{step_index:02d}"
             exec_result = run_executor(descent_source_content, descent_target, step_dir, model=model)

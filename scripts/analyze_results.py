@@ -141,7 +141,7 @@ def analyze_group(results: list[dict], label: str):
             total = s["passed"] + s["failed"]
             rate = s["passed"] / total * 100
             bar = "#" * int(rate / 5)
-            print(f"  Step {idx:2d} | {bar:20s} {rate:5.1f}% ({s['passed']}/{total})")
+            print(f"  Step {idx + 1:2d} | {bar:20s} {rate:5.1f}% ({s['passed']}/{total})")
 
 
 def main():

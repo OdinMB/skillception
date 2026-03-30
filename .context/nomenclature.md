@@ -27,6 +27,10 @@ Rounds are **1-indexed**. Each round adds one level:
 
 Runs are capped at **9 rounds**. Round 9 generates a level-10 skill creator (10 "Creator"s).
 
+## Steps
+
+Steps are **1-indexed** in all display and human-facing output. Internal storage (`step_index` in JSON, directory names like `step-00`) remains 0-based for array indexing convenience, but print statements, analysis reports, and UI should add 1 when rendering.
+
 ## Sentinel values
 
 - `detected_level: -1` — the judge found the skill incoherent (no determinable level).
