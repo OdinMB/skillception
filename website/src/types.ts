@@ -46,6 +46,15 @@ export interface RunResult {
 }
 // --- END GENERATED TYPES ---
 
+export interface AgentTokenStats extends TokenUsage {
+  runCount: number
+}
+
+export interface RoundTokenStats {
+  executor: AgentTokenStats
+  judge: AgentTokenStats
+}
+
 export interface GroupStats {
   totalRuns: number
   roundDistribution: Map<number, number>

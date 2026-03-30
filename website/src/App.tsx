@@ -4,12 +4,16 @@ import {
   discardErrorRuns,
   groupByExecutorAndJudge,
   computeStats,
+  computeTokensByRound,
+  computeMeanStepTokens,
   pickFailureQuotes,
 } from "./lib/analyze";
+import type { RoundTokenStats } from "./types";
 import JournalHeader from "./components/JournalHeader";
 import Abstract from "./components/Abstract";
 import BarChart from "./components/BarChart";
 import RunOverview from "./components/RunAccordion";
+import TokenChart from "./components/TokenChart";
 
 const MODEL_ORDER = ["opus", "sonnet", "haiku"] as const;
 const MODEL_LABELS: Record<string, string> = {
@@ -23,6 +27,7 @@ interface JudgeVariant {
   judgeLabel: string;
   runs: RunResult[];
   stats: GroupStats;
+  tokensByRound: Map<number, RoundTokenStats>;
 }
 
 interface ModelData {
@@ -34,11 +39,18 @@ interface ModelData {
 /** Preferred judge display order: opus first (external), then self. */
 const JUDGE_ORDER = ["opus", "sonnet", "haiku"];
 
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+  return String(n);
+}
+
 function App() {
   const [models, setModels] = useState<ModelData[]>([]);
   const [discarded, setDiscarded] = useState(0);
   const [runTab, setRunTab] = useState(0);
   const [runsOpen, setRunsOpen] = useState(false);
+  const [tokenChartsOpen, setTokenChartsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -68,6 +80,7 @@ function App() {
               judgeLabel: MODEL_LABELS[judgeName] ?? judgeName,
               runs,
               stats: computeStats(runs),
+              tokensByRound: computeTokensByRound(runs),
             });
           }
           if (variants.length > 0) {
@@ -139,6 +152,32 @@ function App() {
       bars.push({ label: `Round ${r}`, value: count });
     }
     return bars;
+  }
+
+  const TOKEN_COLORS = {
+    output: "var(--color-red)",
+    input: "var(--color-blue)",
+    cacheRead: "var(--color-green)",
+    cacheCreation: "var(--color-amber)",
+  };
+
+  function buildTokenRows(
+    tokensByRound: Map<number, RoundTokenStats>,
+    agent: "executor" | "judge",
+  ) {
+    const rounds = [...tokensByRound.keys()].sort((a, b) => a - b);
+    return rounds.map((r) => {
+      const stats = tokensByRound.get(r)![agent];
+      return {
+        label: `Round ${r}`,
+        segments: [
+          { value: stats.outputTokens, color: TOKEN_COLORS.output, name: "Output" },
+          { value: stats.inputTokens, color: TOKEN_COLORS.input, name: "Input" },
+          { value: stats.cacheReadInputTokens, color: TOKEN_COLORS.cacheRead, name: "Cache Read" },
+          { value: stats.cacheCreationInputTokens, color: TOKEN_COLORS.cacheCreation, name: "Cache Write" },
+        ],
+      };
+    });
   }
 
   function failPct(pass: number, total: number): string {
@@ -340,11 +379,180 @@ function App() {
         </>
       )}
 
+      {/* Section 4: Resource Consumption */}
+      <h2>
+        <span className="section-number">4.</span> Resource Consumption
+      </h2>
+
+      {/* Per-step cost table and summary (primary content) */}
+      {(() => {
+        // Group all runs by executor model (regardless of judge)
+        const byExecutor = new Map<string, RunResult[]>();
+        const byJudge = new Map<string, RunResult[]>();
+        for (const m of models) {
+          for (const v of m.variants) {
+            if (!byExecutor.has(m.name)) byExecutor.set(m.name, []);
+            byExecutor.get(m.name)!.push(...v.runs);
+            if (!byJudge.has(v.judgeName)) byJudge.set(v.judgeName, []);
+            byJudge.get(v.judgeName)!.push(...v.runs);
+          }
+        }
+
+        const stepRows: { role: string; model: string; tokens: number }[] = [];
+        for (const name of MODEL_ORDER) {
+          const runs = byExecutor.get(name);
+          if (runs) {
+            const mean = computeMeanStepTokens(runs);
+            if (mean.stepCount > 0) stepRows.push({ role: "Executor", model: MODEL_LABELS[name] ?? name, tokens: mean.executor });
+          }
+        }
+        for (const name of MODEL_ORDER) {
+          const runs = byJudge.get(name);
+          if (runs) {
+            const mean = computeMeanStepTokens(runs);
+            if (mean.stepCount > 0) stepRows.push({ role: "Judge", model: MODEL_LABELS[name] ?? name, tokens: mean.judge });
+          }
+        }
+
+        if (stepRows.length === 0) return null;
+
+        // Find haiku rows for the example text
+        const haikuExec = stepRows.find((r) => r.role === "Executor" && r.model === "Haiku");
+        const haikuJudge = stepRows.find((r) => r.role === "Judge" && r.model === "Haiku");
+
+        return (
+          <>
+            {haikuExec && haikuJudge && (() => {
+              const perStep = haikuExec.tokens + haikuJudge.tokens;
+              // Round R has R+1 steps (1 ascent + R descent)
+              const r1Steps = 1 + 1;
+              const r5Steps = 5 + 1;
+              const r9Steps = 9 + 1;
+              return (
+                <p>
+                  Token consumption per step is roughly constant regardless of
+                  meta-level — the per-round cost growth visible in Figure 3
+                  comes entirely from higher rounds having more steps.
+                  Round <span style={{ fontStyle: "italic" }}>R</span> has{" "}
+                  <span style={{ fontStyle: "italic" }}>R</span>+1 steps (one ascent
+                  plus <span style={{ fontStyle: "italic" }}>R</span> descent steps
+                  back to level 1), so each successive round costs one step more
+                  than the last. Using Haiku as a concrete
+                  example ({formatTokens(haikuExec.tokens)} executor
+                  + {formatTokens(haikuJudge.tokens)} judge
+                  = {formatTokens(perStep)} per step): round 1
+                  costs ~{formatTokens(perStep * r1Steps)} ({r1Steps} steps),
+                  round 5 costs ~{formatTokens(perStep * r5Steps)} ({r5Steps} steps),
+                  and round 9 would
+                  cost ~{formatTokens(perStep * r9Steps)} ({r9Steps} steps).
+                </p>
+              );
+            })()}
+
+            <div className="figure">
+              <div className="figure-content">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Role</th>
+                      <th>Model</th>
+                      <th>Tokens / Step</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stepRows.map((row) => (
+                      <tr key={`${row.role}-${row.model}`}>
+                        <td>{row.role}</td>
+                        <td>{row.model}</td>
+                        <td className="num">{formatTokens(row.tokens)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="figure-caption">
+                <span className="fig-label">Table 2:</span> Mean total token
+                consumption per step by model and role, pooled across all judge
+                and executor pairings respectively. Per-step token cost is
+                roughly constant regardless of meta-level or round.
+              </div>
+            </div>
+          </>
+        );
+      })()}
+
+      {/* Per-round token charts (collapsible) */}
+      <div className="run-detail" style={{ cursor: "pointer" }}>
+        <div
+          className="run-header"
+          onClick={() => setTokenChartsOpen(!tokenChartsOpen)}
+          style={{ justifyContent: "center", gap: "8px" }}
+        >
+          <span style={{ color: "var(--color-footnote)" }}>
+            {tokenChartsOpen ? "Collapse" : "Expand"} per-round token breakdown
+          </span>
+          <span style={{ fontSize: "10px", color: "var(--color-caption)" }}>
+            {tokenChartsOpen ? "\u25BC" : "\u25B6"}
+          </span>
+        </div>
+      </div>
+
+      {tokenChartsOpen && (
+        <>
+          <p>
+            Figure 3 shows the mean token consumption per completed round for
+            each model tier. Only runs that successfully finished all steps in a
+            given round contribute to that round&rsquo;s average.
+          </p>
+
+          {models.map((m, mi) => (
+            <div key={`tokens-${m.name}`}>
+              {m.variants.map((v, vi) => {
+                const executorRoundRows = buildTokenRows(v.tokensByRound, "executor");
+                const judgeRoundRows = buildTokenRows(v.tokensByRound, "judge");
+                if (executorRoundRows.length === 0) return null;
+                const runCounts = [...v.tokensByRound.values()].map((s) => s.executor.runCount);
+                const minRuns = Math.min(...runCounts);
+                const maxRuns = Math.max(...runCounts);
+                return (
+                  <div key={`tokens-${m.name}-${v.judgeName}`}>
+                    <div className="figure">
+                      <h3>
+                        {variantLabel(m, v)}: executor tokens per round (N={minRuns === maxRuns ? maxRuns : `${minRuns}–${maxRuns}`} runs)
+                      </h3>
+                      <div className="figure-content">
+                        <TokenChart rows={executorRoundRows} />
+                      </div>
+                      {mi === 0 && vi === 0 && (
+                        <div className="figure-caption">
+                          <span className="fig-label">Figure 3:</span> Mean executor
+                          token consumption per completed round, broken down by
+                          category. Higher rounds have fewer contributing runs (only
+                          runs that completed that round are included).
+                        </div>
+                      )}
+                    </div>
+                    <div className="figure">
+                      <h3>
+                        {variantLabel(m, v)}: judge tokens per round
+                      </h3>
+                      <div className="figure-content">
+                        <TokenChart rows={judgeRoundRows} />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </>
+      )}
+
       <hr className="thin-rule" />
 
       {/* References */}
       <h2>
-        <span className="section-number">4.</span> References
+        <span className="section-number">5.</span> References
       </h2>
       <div className="references">
         <ol>

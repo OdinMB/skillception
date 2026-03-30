@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import type { RunResult, Failure, Step } from '../types'
+import type { RunResult, Failure, Step, TokenUsage } from '../types'
 import {
   discardErrorRuns,
   groupByExecutorAndJudge,
   computeStats,
+  computeTokensByRound,
+  computeMeanStepTokens,
   formatFailureStep,
   pickFailureQuotes,
 } from './analyze'
@@ -285,3 +287,362 @@ describe('pickFailureQuotes', () => {
     expect(picks[0].description).toContain('3')
   })
 })
+
+// --- computeTokensByRound ---
+
+function makeUsage(overrides: Partial<TokenUsage> = {}): TokenUsage {
+  return {
+    inputTokens: 10,
+    outputTokens: 100,
+    cacheReadInputTokens: 1000,
+    cacheCreationInputTokens: 500,
+    ...overrides,
+  }
+}
+
+describe('computeTokensByRound', () => {
+  it('returns empty map for empty input', () => {
+    const result = computeTokensByRound([])
+    expect(result.size).toBe(0)
+  })
+
+  it('returns exact values for a single run with one round', () => {
+    const runs = [
+      makeRun({
+        max_round: 1,
+        steps: [
+          makeStep({
+            round: 1,
+            direction: 'ascent',
+            executor_usage: makeUsage({ outputTokens: 200 }),
+            judge_usage: makeUsage({ outputTokens: 50 }),
+          }),
+          makeStep({
+            round: 1,
+            direction: 'descent',
+            step_index: 1,
+            executor_usage: makeUsage({ outputTokens: 300 }),
+            judge_usage: makeUsage({ outputTokens: 80 }),
+          }),
+        ],
+      }),
+    ]
+    const result = computeTokensByRound(runs)
+    expect(result.size).toBe(1)
+    const round1 = result.get(1)!
+    expect(round1.executor.outputTokens).toBe(500) // 200 + 300
+    expect(round1.executor.inputTokens).toBe(20) // 10 + 10
+    expect(round1.executor.runCount).toBe(1)
+    expect(round1.judge.outputTokens).toBe(130) // 50 + 80
+    expect(round1.judge.runCount).toBe(1)
+  })
+
+  it('averages across multiple runs for the same round', () => {
+    const runs = [
+      makeRun({
+        max_round: 1,
+        steps: [
+          makeStep({
+            round: 1,
+            executor_usage: makeUsage({ outputTokens: 100 }),
+            judge_usage: makeUsage({ outputTokens: 40 }),
+          }),
+        ],
+      }),
+      makeRun({
+        run_id: 'run-2',
+        max_round: 1,
+        steps: [
+          makeStep({
+            round: 1,
+            executor_usage: makeUsage({ outputTokens: 200 }),
+            judge_usage: makeUsage({ outputTokens: 60 }),
+          }),
+        ],
+      }),
+    ]
+    const result = computeTokensByRound(runs)
+    const round1 = result.get(1)!
+    expect(round1.executor.outputTokens).toBe(150) // (100 + 200) / 2
+    expect(round1.executor.runCount).toBe(2)
+    expect(round1.judge.outputTokens).toBe(50) // (40 + 60) / 2
+  })
+
+  it('handles null executor_usage by skipping', () => {
+    const runs = [
+      makeRun({
+        max_round: 1,
+        steps: [
+          makeStep({
+            round: 1,
+            executor_usage: null,
+            judge_usage: makeUsage({ outputTokens: 50 }),
+          }),
+        ],
+      }),
+      makeRun({
+        run_id: 'run-2',
+        max_round: 1,
+        steps: [
+          makeStep({
+            round: 1,
+            executor_usage: makeUsage({ outputTokens: 200 }),
+            judge_usage: null,
+          }),
+        ],
+      }),
+    ]
+    const result = computeTokensByRound(runs)
+    const round1 = result.get(1)!
+    // Only one run had executor usage
+    expect(round1.executor.outputTokens).toBe(200)
+    expect(round1.executor.runCount).toBe(1)
+    // Only one run had judge usage
+    expect(round1.judge.outputTokens).toBe(50)
+    expect(round1.judge.runCount).toBe(1)
+  })
+
+  it('separates entries per round for multi-round runs', () => {
+    const runs = [
+      makeRun({
+        max_round: 2,
+        steps: [
+          makeStep({
+            round: 1,
+            direction: 'ascent',
+            executor_usage: makeUsage({ outputTokens: 100 }),
+            judge_usage: makeUsage({ outputTokens: 30 }),
+          }),
+          makeStep({
+            round: 1,
+            direction: 'descent',
+            step_index: 1,
+            executor_usage: makeUsage({ outputTokens: 150 }),
+            judge_usage: makeUsage({ outputTokens: 40 }),
+          }),
+          makeStep({
+            round: 2,
+            direction: 'ascent',
+            step_index: 2,
+            executor_usage: makeUsage({ outputTokens: 400 }),
+            judge_usage: makeUsage({ outputTokens: 90 }),
+          }),
+          makeStep({
+            round: 2,
+            direction: 'descent',
+            step_index: 3,
+            executor_usage: makeUsage({ outputTokens: 500 }),
+            judge_usage: makeUsage({ outputTokens: 110 }),
+          }),
+        ],
+      }),
+    ]
+    const result = computeTokensByRound(runs)
+    expect(result.size).toBe(2)
+    expect(result.get(1)!.executor.outputTokens).toBe(250) // 100 + 150
+    expect(result.get(2)!.executor.outputTokens).toBe(900) // 400 + 500
+    expect(result.get(1)!.judge.outputTokens).toBe(70) // 30 + 40
+    expect(result.get(2)!.judge.outputTokens).toBe(200) // 90 + 110
+  })
+
+  it('tracks all four token fields', () => {
+    const runs = [
+      makeRun({
+        max_round: 1,
+        steps: [
+          makeStep({
+            round: 1,
+            executor_usage: {
+              inputTokens: 10,
+              outputTokens: 100,
+              cacheReadInputTokens: 5000,
+              cacheCreationInputTokens: 2000,
+            },
+            judge_usage: {
+              inputTokens: 5,
+              outputTokens: 50,
+              cacheReadInputTokens: 3000,
+              cacheCreationInputTokens: 1000,
+            },
+          }),
+        ],
+      }),
+    ]
+    const result = computeTokensByRound(runs)
+    const r1 = result.get(1)!
+    expect(r1.executor.inputTokens).toBe(10)
+    expect(r1.executor.outputTokens).toBe(100)
+    expect(r1.executor.cacheReadInputTokens).toBe(5000)
+    expect(r1.executor.cacheCreationInputTokens).toBe(2000)
+    expect(r1.judge.inputTokens).toBe(5)
+    expect(r1.judge.outputTokens).toBe(50)
+    expect(r1.judge.cacheReadInputTokens).toBe(3000)
+    expect(r1.judge.cacheCreationInputTokens).toBe(1000)
+  })
+
+  it('excludes rounds where a step failed', () => {
+    const runs = [
+      makeRun({
+        max_round: 2,
+        steps: [
+          makeStep({
+            round: 1,
+            direction: 'ascent',
+            passed: true,
+            executor_usage: makeUsage({ outputTokens: 100 }),
+            judge_usage: makeUsage({ outputTokens: 30 }),
+          }),
+          makeStep({
+            round: 1,
+            direction: 'descent',
+            step_index: 1,
+            passed: true,
+            executor_usage: makeUsage({ outputTokens: 150 }),
+            judge_usage: makeUsage({ outputTokens: 40 }),
+          }),
+          makeStep({
+            round: 2,
+            direction: 'ascent',
+            step_index: 2,
+            passed: true,
+            executor_usage: makeUsage({ outputTokens: 400 }),
+            judge_usage: makeUsage({ outputTokens: 90 }),
+          }),
+          makeStep({
+            round: 2,
+            direction: 'descent',
+            step_index: 3,
+            passed: false, // failed — round 2 incomplete
+            executor_usage: makeUsage({ outputTokens: 500 }),
+            judge_usage: makeUsage({ outputTokens: 110 }),
+          }),
+        ],
+      }),
+    ]
+    const result = computeTokensByRound(runs)
+    // Round 1 completed, round 2 did not
+    expect(result.size).toBe(1)
+    expect(result.has(1)).toBe(true)
+    expect(result.has(2)).toBe(false)
+    expect(result.get(1)!.executor.outputTokens).toBe(250)
+  })
+})
+
+// --- computeMeanStepTokens ---
+
+describe('computeMeanStepTokens', () => {
+  it('returns zeros for empty input', () => {
+    const result = computeMeanStepTokens([])
+    expect(result.executor).toBe(0)
+    expect(result.judge).toBe(0)
+    expect(result.stepCount).toBe(0)
+  })
+
+  it('computes mean total tokens per step for a single run', () => {
+    // makeUsage defaults: input=10, output=100, cacheRead=1000, cacheCreate=500 → total=1610
+    const runs = [
+      makeRun({
+        max_round: 1,
+        steps: [
+          makeStep({
+            round: 1,
+            direction: 'ascent',
+            executor_usage: makeUsage({ outputTokens: 200 }),
+            // total: 10 + 200 + 1000 + 500 = 1710
+            judge_usage: makeUsage({ outputTokens: 50 }),
+            // total: 10 + 50 + 1000 + 500 = 1560
+          }),
+          makeStep({
+            round: 1,
+            direction: 'descent',
+            step_index: 1,
+            executor_usage: makeUsage({ outputTokens: 300 }),
+            // total: 10 + 300 + 1000 + 500 = 1810
+            judge_usage: makeUsage({ outputTokens: 80 }),
+            // total: 10 + 80 + 1000 + 500 = 1590
+          }),
+        ],
+      }),
+    ]
+    const result = computeMeanStepTokens(runs)
+    expect(result.executor).toBe(1760) // (1710 + 1810) / 2
+    expect(result.judge).toBe(1575) // (1560 + 1590) / 2
+    expect(result.stepCount).toBe(2)
+  })
+
+  it('averages across multiple runs', () => {
+    const runs = [
+      makeRun({
+        max_round: 1,
+        steps: [
+          makeStep({
+            round: 1,
+            executor_usage: makeUsage(), // total 1610
+            judge_usage: makeUsage(),    // total 1610
+          }),
+        ],
+      }),
+      makeRun({
+        run_id: 'run-2',
+        max_round: 1,
+        steps: [
+          makeStep({
+            round: 1,
+            executor_usage: makeUsage({ outputTokens: 200 }), // total 1710
+            judge_usage: makeUsage({ outputTokens: 200 }),     // total 1710
+          }),
+        ],
+      }),
+    ]
+    const result = computeMeanStepTokens(runs)
+    expect(result.executor).toBe(1660) // (1610 + 1710) / 2
+    expect(result.judge).toBe(1660)
+    expect(result.stepCount).toBe(2)
+  })
+
+  it('excludes steps from incomplete rounds', () => {
+    const runs = [
+      makeRun({
+        max_round: 1,
+        steps: [
+          makeStep({
+            round: 1,
+            passed: true,
+            executor_usage: makeUsage(),
+            judge_usage: makeUsage(),
+          }),
+          makeStep({
+            round: 1,
+            step_index: 1,
+            passed: false,
+            executor_usage: makeUsage(),
+            judge_usage: makeUsage(),
+          }),
+        ],
+      }),
+    ]
+    const result = computeMeanStepTokens(runs)
+    expect(result.executor).toBe(0)
+    expect(result.stepCount).toBe(0)
+  })
+
+  it('handles null usage by skipping', () => {
+    const runs = [
+      makeRun({
+        max_round: 1,
+        steps: [
+          makeStep({
+            round: 1,
+            executor_usage: null,
+            judge_usage: makeUsage(), // total 1610
+          }),
+        ],
+      }),
+    ]
+    const result = computeMeanStepTokens(runs)
+    expect(result.executor).toBe(0)
+    expect(result.judge).toBe(1610)
+    expect(result.stepCount).toBe(1)
+  })
+})
+

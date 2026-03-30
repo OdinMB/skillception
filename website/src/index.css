@@ -299,6 +299,72 @@ td.fail {
   flex-shrink: 0;
 }
 
+/* === Token chart (stacked bars) === */
+.token-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.token-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.token-label {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--color-footnote);
+  width: 72px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.token-track {
+  flex: 1;
+  height: 20px;
+  background: var(--color-aged);
+  display: flex;
+  position: relative;
+}
+
+.token-segment {
+  height: 100%;
+  transition: width 0.5s;
+}
+
+.token-total {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-footnote);
+  width: 48px;
+  flex-shrink: 0;
+}
+
+.token-legend {
+  display: flex;
+  gap: 16px;
+  margin-top: 4px;
+  padding-left: 80px;
+}
+
+.token-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--color-footnote);
+}
+
+.token-legend-swatch {
+  width: 10px;
+  height: 10px;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
 /* === Judge reasoning === */
 .judge-quote {
   font-family: var(--font-serif);

@@ -1,4 +1,4 @@
-import type { RunResult, GroupStats } from '../types'
+import type { RunResult, GroupStats, RoundTokenStats, AgentTokenStats, TokenUsage } from '../types'
 
 /** Filter out runs that ended due to executor/judge errors. */
 export function discardErrorRuns(results: RunResult[]): RunResult[] {
@@ -84,6 +84,159 @@ export function computeStats(runs: RunResult[]): GroupStats {
     descentPass,
     descentTotal,
     failureCount,
+  }
+}
+
+const TOKEN_FIELDS: (keyof TokenUsage)[] = [
+  'inputTokens',
+  'outputTokens',
+  'cacheReadInputTokens',
+  'cacheCreationInputTokens',
+]
+
+function emptyAgentStats(): AgentTokenStats {
+  return {
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheReadInputTokens: 0,
+    cacheCreationInputTokens: 0,
+    runCount: 0,
+  }
+}
+
+/**
+ * Compute mean token usage per completed round across a set of runs.
+ * Only includes a run's data for round R if every step in that round passed
+ * (i.e., the run actually completed round R). Steps with null usage are
+ * excluded from the average without disqualifying the round.
+ */
+export function computeTokensByRound(
+  runs: RunResult[],
+): Map<number, RoundTokenStats> {
+  const roundSums = new Map<
+    number,
+    { executor: { sums: number[]; count: number }; judge: { sums: number[]; count: number } }
+  >()
+
+  for (const run of runs) {
+    // Group steps by round
+    const stepsByRound = new Map<number, typeof run.steps>()
+    for (const step of run.steps) {
+      if (!stepsByRound.has(step.round)) stepsByRound.set(step.round, [])
+      stepsByRound.get(step.round)!.push(step)
+    }
+
+    for (const [round, steps] of stepsByRound) {
+      // Only include rounds where every step passed
+      if (!steps.every((s) => s.passed)) continue
+
+      if (!roundSums.has(round)) {
+        roundSums.set(round, {
+          executor: { sums: TOKEN_FIELDS.map(() => 0), count: 0 },
+          judge: { sums: TOKEN_FIELDS.map(() => 0), count: 0 },
+        })
+      }
+      const acc = roundSums.get(round)!
+
+      // Sum executor usage across steps in this round for this run
+      let hasExecutor = false
+      const execTotals = TOKEN_FIELDS.map(() => 0)
+      for (const step of steps) {
+        if (step.executor_usage) {
+          hasExecutor = true
+          for (let i = 0; i < TOKEN_FIELDS.length; i++) {
+            execTotals[i] += step.executor_usage[TOKEN_FIELDS[i]]
+          }
+        }
+      }
+      if (hasExecutor) {
+        acc.executor.count++
+        for (let i = 0; i < TOKEN_FIELDS.length; i++) acc.executor.sums[i] += execTotals[i]
+      }
+
+      // Sum judge usage
+      let hasJudge = false
+      const judgeTotals = TOKEN_FIELDS.map(() => 0)
+      for (const step of steps) {
+        if (step.judge_usage) {
+          hasJudge = true
+          for (let i = 0; i < TOKEN_FIELDS.length; i++) {
+            judgeTotals[i] += step.judge_usage[TOKEN_FIELDS[i]]
+          }
+        }
+      }
+      if (hasJudge) {
+        acc.judge.count++
+        for (let i = 0; i < TOKEN_FIELDS.length; i++) acc.judge.sums[i] += judgeTotals[i]
+      }
+    }
+  }
+
+  // Average
+  const result = new Map<number, RoundTokenStats>()
+  for (const [round, acc] of roundSums) {
+    const executor = emptyAgentStats()
+    if (acc.executor.count > 0) {
+      executor.runCount = acc.executor.count
+      for (let i = 0; i < TOKEN_FIELDS.length; i++) {
+        executor[TOKEN_FIELDS[i]] = Math.round(acc.executor.sums[i] / acc.executor.count)
+      }
+    }
+
+    const judge = emptyAgentStats()
+    if (acc.judge.count > 0) {
+      judge.runCount = acc.judge.count
+      for (let i = 0; i < TOKEN_FIELDS.length; i++) {
+        judge[TOKEN_FIELDS[i]] = Math.round(acc.judge.sums[i] / acc.judge.count)
+      }
+    }
+
+    result.set(round, { executor, judge })
+  }
+  return result
+}
+
+function sumUsage(usage: TokenUsage): number {
+  return usage.inputTokens + usage.outputTokens +
+    usage.cacheReadInputTokens + usage.cacheCreationInputTokens
+}
+
+/**
+ * Compute mean total tokens per step for executor and judge across runs.
+ * Only counts steps from rounds where every step passed.
+ */
+export function computeMeanStepTokens(
+  runs: RunResult[],
+): { executor: number; judge: number; stepCount: number } {
+  let execSum = 0, execCount = 0
+  let judgeSum = 0, judgeCount = 0
+
+  for (const run of runs) {
+    const stepsByRound = new Map<number, typeof run.steps>()
+    for (const step of run.steps) {
+      if (!stepsByRound.has(step.round)) stepsByRound.set(step.round, [])
+      stepsByRound.get(step.round)!.push(step)
+    }
+
+    for (const [, steps] of stepsByRound) {
+      if (!steps.every((s) => s.passed)) continue
+      for (const step of steps) {
+        if (step.executor_usage) {
+          execSum += sumUsage(step.executor_usage)
+          execCount++
+        }
+        if (step.judge_usage) {
+          judgeSum += sumUsage(step.judge_usage)
+          judgeCount++
+        }
+      }
+    }
+  }
+
+  return {
+    executor: execCount > 0 ? Math.round(execSum / execCount) : 0,
+    judge: judgeCount > 0 ? Math.round(judgeSum / judgeCount) : 0,
+    stepCount: Math.max(execCount, judgeCount),
   }
 }
 
