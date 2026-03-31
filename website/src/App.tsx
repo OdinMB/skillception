@@ -321,9 +321,10 @@ function App({ initialData, preloadedSummary }: AppProps) {
               />
             </div>
             <div className="figure-caption">
-              <span className="fig-label">Figure 2:</span> Share of runs ending
-              at each round, by model tier. Each round adds one meta-level
-              (round 1: level 1 &rarr; 2, round 9: level 9 &rarr; 10). Round 9
+              <span className="fig-label">Figure 2:</span> Share of runs by
+              last completed round. A run is assigned to round <em>N</em> if it
+              completed round <em>N</em> successfully and then failed during
+              round <em>N</em>+1 (or finished the experiment). Round 9
               completion indicates a full ascent to level 10 and descent back to
               level 1.
             </div>

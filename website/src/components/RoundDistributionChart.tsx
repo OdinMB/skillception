@@ -105,13 +105,14 @@ export default function RoundDistributionChart({ data, labels, colors }: Props) 
         onClick={handleClick}
       />
       <ResponsiveContainer width="100%" height={300}>
-        <ComposedChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+        <ComposedChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 20 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--color-rule)" />
           <XAxis
             dataKey="round"
             tickFormatter={(r: number) => `${r}`}
             tick={{ fontSize: 13, fontFamily: 'var(--font-serif, Georgia, serif)' }}
             stroke="var(--color-ink)"
+            label={{ value: 'Completed round', position: 'insideBottom', offset: -12, fontSize: 12, fontFamily: 'var(--font-sans)', fill: 'var(--color-caption)' }}
           />
           <YAxis
             tickFormatter={(v: number) => `${v}%`}
