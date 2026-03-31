@@ -297,8 +297,7 @@ export function variantLabel(
 export function formatFailureStep(run: RunResult): string {
   if (!run.failure) return '\u2014'
   // Use pre-computed description from summary data when steps are stripped
-  const precomputed = (run as unknown as Record<string, unknown>)._failureDescription
-  if (typeof precomputed === 'string') return precomputed
+  if (run._failureDescription) return run._failureDescription
   const failedStep = run.steps.find((s) => s.step_index === run.failure!.step_index)
   if (!failedStep) return `round ${run.failure.round}`
   if (failedStep.direction === 'ascent') {

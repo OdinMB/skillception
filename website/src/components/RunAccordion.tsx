@@ -8,10 +8,8 @@ interface Props {
 
 function RunRow({ run }: { run: RunResult }) {
   const [open, setOpen] = useState(false)
-  const precomputedPeak = (run as unknown as Record<string, unknown>)._peakLevel
-  const peakLevel = typeof precomputedPeak === 'number'
-    ? precomputedPeak
-    : run.steps.map((s) => s.target_level).reduce((a, b) => Math.max(a, b), 0)
+  const peakLevel = run._peakLevel
+    ?? run.steps.map((s) => s.target_level).reduce((a, b) => Math.max(a, b), 0)
 
   return (
     <>

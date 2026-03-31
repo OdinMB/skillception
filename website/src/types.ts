@@ -43,6 +43,10 @@ export interface RunResult {
   total_usage: TokenUsage | null
   steps: Step[]
   failure: Failure | null
+  /** Pre-computed by prerender when steps are stripped from summary data */
+  _peakLevel?: number
+  /** Pre-computed by prerender when steps are stripped from summary data */
+  _failureDescription?: string
 }
 // --- END GENERATED TYPES ---
 
