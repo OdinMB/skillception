@@ -402,11 +402,11 @@ describe('failPct', () => {
 // --- variantLabel ---
 
 describe('variantLabel', () => {
-  it('shows self-judged when model and judge match', () => {
-    expect(variantLabel('opus', 'Opus', 'opus', 'Opus')).toBe('Opus (self-judged)')
+  it('shows judge model name when model and judge match', () => {
+    expect(variantLabel('opus', 'Opus', 'opus', 'Opus')).toBe('Opus (judged by Opus)')
   })
 
-  it('shows judged by when model and judge differ', () => {
+  it('shows judge model name when model and judge differ', () => {
     expect(variantLabel('haiku', 'Haiku', 'opus', 'Opus')).toBe(
       'Haiku (judged by Opus)',
     )

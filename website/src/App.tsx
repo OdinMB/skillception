@@ -233,9 +233,14 @@ function App() {
       </h2>
       <p>
         Table 1 summarizes failure rates by direction and judge configuration.
-        For each executor model, we compare performance when judged by Opus
-        versus self-judged, testing whether a model grades its own
-        meta-recursive output more leniently than an external evaluator.
+        All evaluations are blind: the judge receives only the generated
+        SKILL.md text with no knowledge of which model produced it or what
+        meta-level was intended. A mismatch between expected and detected
+        level is a failure of the model as a whole &mdash; the executor may
+        have drifted from the target abstraction, or the judge may have
+        misread the output, or both. Same-tier pairings (e.g.
+        Sonnet/Sonnet) test whether the model can stay semantically
+        consistent with itself across deepening recursion layers.
       </p>
 
       <div className="figure">
@@ -256,11 +261,7 @@ function App() {
                 m.variants.map((v) => (
                   <tr key={`${m.name}-${v.judgeName}`}>
                     <td>{m.label}</td>
-                    <td>
-                      {m.name === v.judgeName
-                        ? <span style={{ fontStyle: "italic" }}>Self</span>
-                        : v.judgeLabel}
-                    </td>
+                    <td>{v.judgeLabel}</td>
                     <td className="num">{v.stats.totalRuns}</td>
                     <td className="num">{v.stats.failureCount}</td>
                     <td className="num">

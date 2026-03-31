@@ -285,14 +285,11 @@ export function failPct(pass: number, total: number): string {
 
 /** Build a display label for a model/judge variant. */
 export function variantLabel(
-  modelName: string,
+  _modelName: string,
   modelLabel: string,
-  judgeName: string,
+  _judgeName: string,
   judgeLabel: string,
 ): string {
-  if (modelName === judgeName) {
-    return `${modelLabel} (self-judged)`
-  }
   return `${modelLabel} (judged by ${judgeLabel})`
 }
 
