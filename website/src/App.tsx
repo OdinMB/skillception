@@ -10,6 +10,7 @@ import JournalHeader from "./components/JournalHeader";
 import Abstract from "./components/Abstract";
 import BarChart from "./components/BarChart";
 import RunOverview from "./components/RunAccordion";
+import Footer from "./components/Footer";
 
 const MODEL_ORDER = ["opus", "sonnet", "haiku"] as const;
 const MODEL_LABELS: Record<string, string> = {
@@ -390,6 +391,8 @@ function App() {
           scripts/run_experiment.py&rdquo; and then going to make coffee.
         </p>
       </div>
+
+      <Footer />
     </div>
   );
 }
