@@ -11,13 +11,6 @@ export function render(data: RunResult[]): string {
   )
 }
 
-export {
-  discardErrorRuns,
-  groupByExecutorAndJudge,
-  computeStats,
-  computeTokensByRound,
-  computeMeanStepTokens,
-  formatFailureStep,
-} from './lib/analyze'
+export { buildPreloadSummary } from './lib/preload'
 
 export type { RunResult } from './types'

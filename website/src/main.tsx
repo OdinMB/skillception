@@ -2,7 +2,7 @@ import { StrictMode } from 'react'
 import { hydrateRoot, createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
-import type { PreloadedSummary } from './App.tsx'
+import type { PreloadedSummary } from './lib/preload.ts'
 
 const rootEl = document.getElementById('root')!
 const preloadedSummary = (window as unknown as Record<string, unknown>).__PRELOADED_SUMMARY__ as
