@@ -17,6 +17,7 @@ import RoundDistributionChart from "./components/RoundDistributionChart";
 import RoundDiagram from "./components/RoundDiagram";
 import RunOverview from "./components/RunAccordion";
 import TokenChart from "./components/TokenChart";
+import Footer from "./components/Footer";
 
 const MODEL_ORDER = ["opus", "sonnet", "haiku"] as const;
 const MODEL_LABELS: Record<string, string> = {
@@ -761,6 +762,8 @@ function App({ initialData, preloadedSummary }: AppProps) {
           about academia.
         </p>
       </div>
+
+      <Footer />
     </div>
   );
 }
