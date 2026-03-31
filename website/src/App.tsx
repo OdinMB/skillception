@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { RunResult, GroupStats, RoundTokenStats, AgentTokenStats } from "./types";
+import type { RunResult, GroupStats, RoundTokenStats } from "./types";
 import {
   discardErrorRuns,
   groupByExecutorAndJudge,
@@ -11,6 +11,7 @@ import {
   failPct,
   variantLabel,
 } from "./lib/analyze";
+import type { PreloadedSummary } from "./lib/preload";
 import JournalHeader from "./components/JournalHeader";
 import Abstract from "./components/Abstract";
 import RoundDistributionChart from "./components/RoundDistributionChart";
@@ -87,36 +88,6 @@ function processRunData(data: RunResult[]): { models: ModelData[]; discarded: nu
   return { models: modelData, discarded };
 }
 
-// --- Preloaded summary types (serialized Maps as entry arrays) ---
-
-interface SerializedStats {
-  totalRuns: number;
-  roundDistribution: [number, number][];
-  maxRound: number;
-  meanRound: number;
-  medianRound: number;
-  ascentPass: number;
-  ascentTotal: number;
-  descentPass: number;
-  descentTotal: number;
-  failureCount: number;
-}
-
-export interface PreloadedSummary {
-  discarded: number;
-  models: Array<{
-    name: string;
-    label: string;
-    variants: Array<{
-      judgeName: string;
-      judgeLabel: string;
-      runs: RunResult[];
-      stats: SerializedStats;
-      tokensByRound: [number, { executor: AgentTokenStats; judge: AgentTokenStats }][];
-    }>;
-  }>;
-  stepRows: Array<{ role: string; model: string; tokens: number }>;
-}
 
 function deserializeSummary(summary: PreloadedSummary): {
   models: ModelData[];
@@ -168,6 +139,7 @@ function App({ initialData, preloadedSummary }: AppProps) {
   const [loading, setLoading] = useState(!initial);
   const [error, setError] = useState<string | null>(null);
   const [fullDataLoaded, setFullDataLoaded] = useState(!!initialData);
+  const [detailUnavailable, setDetailUnavailable] = useState(false);
 
   useEffect(() => {
     if (initialData) return;
@@ -187,15 +159,16 @@ function App({ initialData, preloadedSummary }: AppProps) {
         setLoading(false);
       })
       .catch((e) => {
-        // If we already have summary data, swallow the error — page still works
+        // Summary data present — page still works, but run details won't expand
         if (preloadedSummary) {
-          setFullDataLoaded(false);
+          setDetailUnavailable(true);
           return;
         }
         setError(e.message);
         setLoading(false);
       });
-  }, [initialData, preloadedSummary]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- initialData and preloadedSummary are stable from mount
+  }, []);
 
   if (loading) {
     return (
@@ -478,6 +451,11 @@ function App({ initialData, preloadedSummary }: AppProps) {
 
       {runsOpen && (
         <>
+          {detailUnavailable && (
+            <p style={{ fontStyle: "italic", color: "var(--color-footnote)", fontSize: "14px", textAlign: "center" }}>
+              Detailed run data could not be loaded. Summary statistics above are unaffected.
+            </p>
+          )}
           <div className="model-tabs">
             {runTabItems.map((item, i) => (
               <button
@@ -748,8 +726,6 @@ function App({ initialData, preloadedSummary }: AppProps) {
           </li>
         </ol>
       </div>
-
-      <hr className="thin-rule" />
 
       {/* Footnotes */}
       <div className="footnote">

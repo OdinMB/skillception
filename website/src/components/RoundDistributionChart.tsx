@@ -10,9 +10,9 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 
-const noop = () => () => {}
+const noSubscribe = () => () => {}
 function useHydrated() {
-  return useSyncExternalStore(noop, () => true, () => false)
+  return useSyncExternalStore(noSubscribe, () => true, () => false)
 }
 
 interface Props {
