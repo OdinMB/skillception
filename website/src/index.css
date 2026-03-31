@@ -523,14 +523,14 @@ td.fail {
   font-size: 14px;
   color: var(--color-caption);
   text-align: center;
-  padding: 32px 0 0;
-  margin-top: 24px;
-  border-top: 1px solid var(--color-rule);
+  padding: 32px 24px 24px;
+  background: #f5f2ea;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 12px;
   flex-wrap: wrap;
+  width: 100%;
 }
 
 .footer-sep {
@@ -559,10 +559,6 @@ td.fail {
   text-decoration: underline;
   text-decoration-color: var(--color-rule);
   text-underline-offset: 2px;
-}
-
-.footer-text {
-  color: var(--color-caption);
 }
 
 /* === Legal modal === */

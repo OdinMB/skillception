@@ -305,9 +305,8 @@ export default function Footer() {
         </button>
         <span className="footer-sep">&middot;</span>
         <button className="footer-link" onClick={() => setModal("privacy")}>
-          Privacy
+          Privacy (no tracking)
         </button>
-        <span className="footer-text">(no tracking)</span>
         <span className="footer-sep">&middot;</span>
         <a
           href="https://ko-fi.com/OdinMB"

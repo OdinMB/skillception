@@ -264,6 +264,7 @@ function App({ initialData, preloadedSummary }: AppProps) {
   const activeRunItem = runTabItems[safeRunTab];
 
   return (
+    <>
     <div className="page">
       <JournalHeader />
 
@@ -768,8 +769,10 @@ function App({ initialData, preloadedSummary }: AppProps) {
         </p>
       </div>
 
-      <Footer />
     </div>
+
+      <Footer />
+    </>
   );
 }
 
