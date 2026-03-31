@@ -83,6 +83,14 @@ function ImpressumContent() {
         >
           LinkedIn
         </a>
+        <br />
+        <a
+          href="https://odins.website"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          odins.website
+        </a>
       </p>
 
       <p>
@@ -292,26 +300,23 @@ export default function Footer() {
   return (
     <>
       <footer className="site-footer">
-        <span>
-          <button className="footer-link" onClick={() => setModal("impressum")}>
-            Impressum
-          </button>
-          {" | "}
-          <button className="footer-link" onClick={() => setModal("privacy")}>
-            Privacy
-          </button>
-          {" | "}
-          <span className="footer-text">No tracking</span>
-          {" | "}
-          <a
-            href="https://ko-fi.com/OdinMB"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="footer-link-a"
-          >
-            Send me a coffee
-          </a>
-        </span>
+        <button className="footer-link" onClick={() => setModal("impressum")}>
+          Impressum
+        </button>
+        <span className="footer-sep">&middot;</span>
+        <button className="footer-link" onClick={() => setModal("privacy")}>
+          Privacy
+        </button>
+        <span className="footer-text">(no tracking)</span>
+        <span className="footer-sep">&middot;</span>
+        <a
+          href="https://ko-fi.com/OdinMB"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="footer-link-a"
+        >
+          Send me a coffee
+        </a>
       </footer>
 
       <Modal open={modal === "impressum"} onClose={closeModal}>
