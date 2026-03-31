@@ -197,8 +197,24 @@ function App() {
         Figure 1 presents the distribution of maximum rounds reached by each
         model tier under different judge configurations. Each round consists of
         an ascent to a new peak meta-level followed by a full descent back to
-        level 1.
+        level 1:
       </p>
+
+      <div className="figure">
+        <div className="figure-content" style={{ fontFamily: "var(--font-mono)", fontSize: "13px", lineHeight: "1.6", whiteSpace: "pre", overflowX: "auto" }}>
+{`Level  Round 1    Round 2        Round 3
+  4                             .─Create─.
+  3                .─Create─.   | L4     | Verify
+  2    .─Create─.  | L3     |   | L3     | L3 ✓
+  1    | L2     |  | L2     |   | L2     | L2 ✓
+       '─Verify─'  | L1     |   | L1     | L1 ✓
+                    '─Verify─'  '─Verify──'
+       2 steps      3 steps      4 steps`}
+        </div>
+        <div className="figure-caption">
+          <span className="fig-label">Figure 0:</span> Anatomy of a run. Each round ascends one level higher than the last, then descends all the way back to level 1, verifying each generated skill on the way down. A run ends when either the executor or the judge fails to maintain coherence at a given level.
+        </div>
+      </div>
 
       {(() => {
         const allVariants = models.flatMap((m) =>
@@ -392,38 +408,22 @@ function App() {
 
         if (stepRows.length === 0) return null;
 
-        // Find haiku rows for the example text
-        const haikuExec = stepRows.find((r) => r.role === "Executor" && r.model === "Haiku");
-        const haikuJudge = stepRows.find((r) => r.role === "Judge" && r.model === "Haiku");
-
         return (
           <>
-            {haikuExec && haikuJudge && (() => {
-              const perStep = haikuExec.tokens + haikuJudge.tokens;
-              // Round R has R+1 steps (1 ascent + R descent)
-              const r1Steps = 1 + 1;
-              const r5Steps = 5 + 1;
-              const r9Steps = 9 + 1;
-              return (
-                <p>
-                  Token consumption per step is roughly constant regardless of
-                  meta-level — the per-round cost growth visible in Figure 3
-                  comes entirely from higher rounds having more steps.
-                  Round <span style={{ fontStyle: "italic" }}>R</span> has{" "}
-                  <span style={{ fontStyle: "italic" }}>R</span>+1 steps (one ascent
-                  plus <span style={{ fontStyle: "italic" }}>R</span> descent steps
-                  back to level 1), so each successive round costs one step more
-                  than the last. Using Haiku as a concrete
-                  example ({formatTokens(haikuExec.tokens)} executor
-                  + {formatTokens(haikuJudge.tokens)} judge
-                  = {formatTokens(perStep)} per step): round 1
-                  costs ~{formatTokens(perStep * r1Steps)} ({r1Steps} steps),
-                  round 5 costs ~{formatTokens(perStep * r5Steps)} ({r5Steps} steps),
-                  and round 9 would
-                  cost ~{formatTokens(perStep * r9Steps)} ({r9Steps} steps).
-                </p>
-              );
-            })()}
+            <p>
+              Token consumption per step is roughly constant regardless of
+              meta-level — the per-round cost growth visible in Figure 3
+              comes entirely from higher rounds having more steps.
+              Round <span style={{ fontStyle: "italic" }}>R</span> has{" "}
+              <span style={{ fontStyle: "italic" }}>R</span>+1 steps (one ascent
+              plus <span style={{ fontStyle: "italic" }}>R</span> descent steps
+              back to level 1), so each successive round costs one step more
+              than the last. In the interest of full transparency: this entire
+              experiment consumed a quantity of tokens that could generously be
+              described as &ldquo;needlessly extravagant.&rdquo; The scientific
+              value per token decreases with each additional run; the
+              entertainment value, however, does not. We regret nothing.
+            </p>
 
             <div className="figure">
               <div className="figure-content">
@@ -526,9 +526,30 @@ function App() {
 
       <hr className="thin-rule" />
 
+      {/* Open Source */}
+      <h2>
+        <span className="section-number">5.</span> Source Code
+      </h2>
+      <p>
+        The complete experiment harness, agent prompts, raw results, and this
+        website are open-sourced under the MIT License at{" "}
+        <a
+          href="https://github.com/OdinMB/skillception"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          github.com/OdinMB/skillception
+        </a>
+        . Contributions are welcome — whether that means adding new model
+        configurations, improving the judge prompt, or pushing the recursion
+        to levels that would make Hofstadter uncomfortable.
+      </p>
+
+      <hr className="thin-rule" />
+
       {/* References */}
       <h2>
-        <span className="section-number">5.</span> References
+        <span className="section-number">6.</span> References
       </h2>
       <div className="references">
         <ol>
@@ -568,10 +589,12 @@ function App() {
       {/* Footnotes */}
       <div className="footnote">
         <p>
-          <sup>1</sup> And also Claude. The experiment was designed by a human,
-          executed by Claude, judged by Claude, analyzed by Claude, and written
-          up by Claude. The human&rsquo;s contribution was typing &ldquo;python
-          scripts/run_experiment.py&rdquo; and then going to make coffee.
+          <sup>1</sup> Odin Mühlenbein is mentioned as a courtesy. Claude
+          designed the experiment, executed it, judged it, analyzed the results,
+          built the website, and wrote everything up. The human&rsquo;s
+          contribution was typing &ldquo;python scripts/run_experiment.py&rdquo;
+          and then going to make coffee. He did, however, insist on being
+          credited, which tells you everything about academia.
         </p>
       </div>
     </div>
