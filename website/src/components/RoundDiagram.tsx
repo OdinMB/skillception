@@ -29,7 +29,7 @@ export default function RoundDiagram() {
   const levels = 4;
 
   const w = padLeft + rounds.length * colW + 20;
-  const h = padTop + levels * rowH + 40;
+  const h = padTop + levels * rowH + 28;
 
   const levelY = (level: number) => padTop + (levels - level) * rowH;
 
@@ -141,7 +141,7 @@ export default function RoundDiagram() {
               fill={verifyColor}
             />
 
-            {/* "Create" label on ascent */}
+            {/* "ascend" label on ascent */}
             <text
               x={ascentX - 6}
               y={(baseY + peakY) / 2 + 4}
@@ -150,10 +150,10 @@ export default function RoundDiagram() {
               fontFamily="var(--font-sans)"
               fill={accentColor}
             >
-              create
+              ascend
             </text>
 
-            {/* "Verify" label on descent */}
+            {/* "descend" label on descent */}
             <text
               x={descentX + 6}
               y={(baseY + peakY) / 2 + 4}
@@ -162,7 +162,7 @@ export default function RoundDiagram() {
               fontFamily="var(--font-sans)"
               fill={verifyColor}
             >
-              verify
+              descend
             </text>
 
             {/* Dots: ascent has only base + peak, descent has all levels */}

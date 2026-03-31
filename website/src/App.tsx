@@ -55,7 +55,10 @@ function formatTokens(n: number): string {
   return String(n);
 }
 
-function processRunData(data: RunResult[]): { models: ModelData[]; discarded: number } {
+function processRunData(data: RunResult[]): {
+  models: ModelData[];
+  discarded: number;
+} {
   const clean = discardErrorRuns(data);
   const discarded = data.length - clean.length;
   const byExecutorAndJudge = groupByExecutorAndJudge(clean);
@@ -87,7 +90,6 @@ function processRunData(data: RunResult[]): { models: ModelData[]; discarded: nu
   }
   return { models: modelData, discarded };
 }
-
 
 function deserializeSummary(summary: PreloadedSummary): {
   models: ModelData[];
@@ -167,7 +169,7 @@ function App({ initialData, preloadedSummary }: AppProps) {
         setError(e.message);
         setLoading(false);
       });
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- initialData and preloadedSummary are stable from mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initialData and preloadedSummary are stable from mount
   }, []);
 
   if (loading) {
@@ -277,13 +279,13 @@ function App({ initialData, preloadedSummary }: AppProps) {
       </h2>
       <p>
         Figure 2 presents the distribution of maximum rounds reached by each
-        model tier under different judge configurations. Each round consists of
-        an ascent to a new peak meta-level followed by a full descent back to
-        level 1:
+        model tier. Each round consists of an ascent to a new peak meta-level
+        followed by a full descent back to level 1. Every step involves the
+        executor generating a skill and the judge blindly evaluating it:
       </p>
 
       <div className="figure figure--borderless">
-        <div className="figure-content">
+        <div className="figure-content" style={{ marginBottom: 0 }}>
           <RoundDiagram />
         </div>
         <div className="figure-caption">
@@ -452,8 +454,16 @@ function App({ initialData, preloadedSummary }: AppProps) {
       {runsOpen && (
         <>
           {detailUnavailable && (
-            <p style={{ fontStyle: "italic", color: "var(--color-footnote)", fontSize: "14px", textAlign: "center" }}>
-              Detailed run data could not be loaded. Summary statistics above are unaffected.
+            <p
+              style={{
+                fontStyle: "italic",
+                color: "var(--color-footnote)",
+                fontSize: "14px",
+                textAlign: "center",
+              }}
+            >
+              Detailed run data could not be loaded. Summary statistics above
+              are unaffected.
             </p>
           )}
           <div className="model-tabs">
