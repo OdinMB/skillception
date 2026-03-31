@@ -12,8 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "preview": "vite preview",
-    "export-data": "python ../scripts/export_results.py --runs-dir ../runs --output public/results.json",
-    "check-types-sync": "python ../scripts/check_types_sync.py"
+    "export-data": "python ../scripts/export_results.py --runs-dir ../runs --output public/results.json"
   },
   "engines": {
     "node": ">=20"
@@ -21,6 +20,7 @@
   "dependencies": {
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "recharts": "^3.8.1",
     "skillception": "file:.."
   },
   "devDependencies": {

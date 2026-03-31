@@ -9,6 +9,7 @@ import {
   formatFailureStep,
   pickFailureQuotes,
   buildRoundBars,
+  buildGroupedRoundData,
   failPct,
   variantLabel,
   formatDetectedLevel,
@@ -340,6 +341,41 @@ describe('buildRoundBars', () => {
     expect(bars).toHaveLength(4)
     expect(bars[0].value).toBe(0) // round 0
     expect(bars[2].value).toBe(1) // round 2
+  })
+})
+
+// --- buildGroupedRoundData ---
+
+describe('buildGroupedRoundData', () => {
+  it('produces rows for rounds 1–9 with percentages per variant', () => {
+    const variants = [
+      { label: 'Haiku', stats: makeStats({ totalRuns: 10, roundDistribution: new Map([[1, 5], [3, 2]]) }) },
+      { label: 'Sonnet', stats: makeStats({ totalRuns: 4, roundDistribution: new Map([[8, 2], [9, 2]]) }) },
+    ]
+    const rows = buildGroupedRoundData(variants)
+    expect(rows).toHaveLength(9)
+    expect(rows[0].round).toBe(1)
+    expect(rows[0]['Haiku']).toBe(50)
+    expect(rows[0]['Sonnet']).toBe(0)
+    expect(rows[7]['Sonnet']).toBe(50) // round 8
+    expect(rows[8]['Sonnet']).toBe(50) // round 9
+  })
+
+  it('never includes round 0', () => {
+    const variants = [
+      { label: 'A', stats: makeStats({ totalRuns: 5, roundDistribution: new Map([[0, 3], [1, 2]]) }) },
+    ]
+    const rows = buildGroupedRoundData(variants)
+    expect(rows[0].round).toBe(1)
+    expect(rows.every((r) => r.round >= 1)).toBe(true)
+  })
+
+  it('handles zero totalRuns gracefully', () => {
+    const variants = [
+      { label: 'Empty', stats: makeStats({ totalRuns: 0, roundDistribution: new Map() }) },
+    ]
+    const rows = buildGroupedRoundData(variants)
+    expect(rows.every((r) => r['Empty'] === 0)).toBe(true)
   })
 })
 

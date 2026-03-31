@@ -254,6 +254,28 @@ export function buildRoundBars(
   return bars
 }
 
+/**
+ * Build grouped round distribution data for all variants.
+ * Returns an array of objects with round number and percentage for each variant.
+ */
+export function buildGroupedRoundData(
+  variants: { label: string; stats: GroupStats }[],
+): { round: number; [label: string]: number }[] {
+  const rows: { round: number; [label: string]: number }[] = []
+  for (let r = 1; r <= 9; r++) {
+    const row: { round: number; [label: string]: number } = { round: r }
+    for (const v of variants) {
+      const count = v.stats.roundDistribution.get(r) ?? 0
+      const pct = v.stats.totalRuns > 0
+        ? +((count / v.stats.totalRuns) * 100).toFixed(1)
+        : 0
+      row[v.label] = pct
+    }
+    rows.push(row)
+  }
+  return rows
+}
+
 /** Format a failure percentage from pass count and total. */
 export function failPct(pass: number, total: number): string {
   if (total === 0) return '\u2014'

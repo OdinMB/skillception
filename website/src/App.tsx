@@ -7,13 +7,13 @@ import {
   computeTokensByRound,
   computeMeanStepTokens,
   pickFailureQuotes,
-  buildRoundBars,
+  buildGroupedRoundData,
   failPct,
   variantLabel,
 } from "./lib/analyze";
 import JournalHeader from "./components/JournalHeader";
 import Abstract from "./components/Abstract";
-import BarChart from "./components/BarChart";
+import RoundDistributionChart from "./components/RoundDistributionChart";
 import RunOverview from "./components/RunAccordion";
 import TokenChart from "./components/TokenChart";
 
@@ -22,6 +22,11 @@ const MODEL_LABELS: Record<string, string> = {
   opus: "Opus",
   sonnet: "Sonnet",
   haiku: "Haiku",
+};
+const MODEL_COLORS: Record<string, string> = {
+  opus: "var(--color-ink)",
+  sonnet: "var(--color-blue)",
+  haiku: "var(--color-red)",
 };
 
 interface JudgeVariant {
@@ -135,17 +140,6 @@ function App() {
     );
   }
 
-  // Collect all variants for global chart scaling
-  const allVariants = models.flatMap((m) => m.variants);
-  const allMaxRounds = allVariants.flatMap((v) =>
-    Array.from(v.stats.roundDistribution.keys()),
-  );
-  const globalMinRound = allMaxRounds.reduce((a, b) => Math.min(a, b), 0);
-  const globalMaxRound = allMaxRounds.reduce((a, b) => Math.max(a, b), 0);
-  const globalMaxCount = allVariants
-    .flatMap((v) => Array.from(v.stats.roundDistribution.values()))
-    .reduce((a, b) => Math.max(a, b), 1);
-
   const TOKEN_COLORS = {
     output: "var(--color-red)",
     input: "var(--color-blue)",
@@ -206,30 +200,32 @@ function App() {
         level 1.
       </p>
 
-      {models.map((m, mi) => (
-        <div key={m.name}>
-          {m.variants.map((v, vi) => (
-            <div className="figure" key={`${m.name}-${v.judgeName}`}>
-              <h3>
-                {variantLabel(m.name, m.label, v.judgeName, v.judgeLabel)} (N={v.stats.totalRuns})
-              </h3>
-              <div className="figure-content">
-                <BarChart
-                  bars={buildRoundBars(v.stats, globalMinRound, globalMaxRound)}
-                  maxValue={globalMaxCount}
-                />
-              </div>
-              {mi === 0 && vi === 0 && (
-                <div className="figure-caption">
-                  <span className="fig-label">Figure 1:</span> Distribution of
-                  maximum round reached by model tier and judge. Each round adds
-                  one level (round 1: level 1 &rarr; 2, round 9: level 9 &rarr; 10).
-                </div>
-              )}
+      {(() => {
+        const allVariants = models.flatMap((m) =>
+          m.variants.map((v) => ({
+            label: `${m.label} (N=${v.stats.totalRuns})`,
+            color: MODEL_COLORS[m.name] ?? "var(--color-footnote)",
+            stats: v.stats,
+          })),
+        );
+        const labels = allVariants.map((v) => v.label);
+        const colors = allVariants.map((v) => v.color);
+        const data = buildGroupedRoundData(allVariants);
+        return (
+          <div className="figure">
+            <div className="figure-content">
+              <RoundDistributionChart data={data} labels={labels} colors={colors} />
             </div>
-          ))}
-        </div>
-      ))}
+            <div className="figure-caption">
+              <span className="fig-label">Figure 1:</span> Share of runs ending
+              at each round, by model tier. Each round adds one meta-level
+              (round 1: level 1 &rarr; 2, round 9: level 9 &rarr; 10).
+              Round 9 completion indicates a full ascent to level 10 and
+              descent back to level 1.
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Section 2: Failure Analysis */}
       <h2>
