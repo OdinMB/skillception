@@ -46,15 +46,15 @@ export default function Abstract({ models, discarded }: Props) {
   return (
     <div className="abstract">
       <div className="abstract-label">Abstract</div>
-      <p className="!mb-0">
+      <p className="mb-0!">
         A Skill Creator (level 1) creates skills. A Skill Creator Creator (level
         2) creates Skill Creators. A Skill Creator Creator Creator (level 3)
         &mdash; well, you see where this is going, and so did we, which is why
         we kept going. We push this chain until the model loses the thread
         entirely, unable to maintain semantic coherence across ascending and
-        descending meta-levels. Across {totalRuns + discarded} runs, we test how long Claude
-        model tiers can serve as both executor and blind judge without losing
-        track of what level of abstraction they are operating at.{" "}
+        descending meta-levels. Across {totalRuns + discarded} runs, we test how
+        long Claude model tiers can serve as both executor and blind judge
+        without losing track of what level of abstraction they are operating at.{" "}
         {modelMedians.map((m, i) => (
           <span key={m.name}>
             {m.name} reaches a median of round {m.median}
