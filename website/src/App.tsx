@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { RunResult, GroupStats, RoundTokenStats } from "./types";
+import type { RunResult, GroupStats, RoundTokenStats, AgentTokenStats } from "./types";
 import {
   discardErrorRuns,
   groupByExecutorAndJudge,
@@ -53,61 +53,148 @@ function formatTokens(n: number): string {
   return String(n);
 }
 
-function App() {
-  const [models, setModels] = useState<ModelData[]>([]);
-  const [discarded, setDiscarded] = useState(0);
+function processRunData(data: RunResult[]): { models: ModelData[]; discarded: number } {
+  const clean = discardErrorRuns(data);
+  const discarded = data.length - clean.length;
+  const byExecutorAndJudge = groupByExecutorAndJudge(clean);
+  const modelData: ModelData[] = [];
+  for (const executorName of MODEL_ORDER) {
+    const judgeMap = byExecutorAndJudge.get(executorName);
+    if (!judgeMap) continue;
+    const variants: JudgeVariant[] = [];
+    const judgeNames = [...judgeMap.keys()].sort(
+      (a, b) => JUDGE_ORDER.indexOf(a) - JUDGE_ORDER.indexOf(b),
+    );
+    for (const judgeName of judgeNames) {
+      const runs = judgeMap.get(judgeName)!;
+      variants.push({
+        judgeName,
+        judgeLabel: MODEL_LABELS[judgeName] ?? judgeName,
+        runs,
+        stats: computeStats(runs),
+        tokensByRound: computeTokensByRound(runs),
+      });
+    }
+    if (variants.length > 0) {
+      modelData.push({
+        name: executorName,
+        label: MODEL_LABELS[executorName] ?? executorName,
+        variants,
+      });
+    }
+  }
+  return { models: modelData, discarded };
+}
+
+// --- Preloaded summary types (serialized Maps as entry arrays) ---
+
+interface SerializedStats {
+  totalRuns: number;
+  roundDistribution: [number, number][];
+  maxRound: number;
+  meanRound: number;
+  medianRound: number;
+  ascentPass: number;
+  ascentTotal: number;
+  descentPass: number;
+  descentTotal: number;
+  failureCount: number;
+}
+
+export interface PreloadedSummary {
+  discarded: number;
+  models: Array<{
+    name: string;
+    label: string;
+    variants: Array<{
+      judgeName: string;
+      judgeLabel: string;
+      runs: RunResult[];
+      stats: SerializedStats;
+      tokensByRound: [number, { executor: AgentTokenStats; judge: AgentTokenStats }][];
+    }>;
+  }>;
+  stepRows: Array<{ role: string; model: string; tokens: number }>;
+}
+
+function deserializeSummary(summary: PreloadedSummary): {
+  models: ModelData[];
+  discarded: number;
+  stepRows: Array<{ role: string; model: string; tokens: number }>;
+} {
+  return {
+    discarded: summary.discarded,
+    stepRows: summary.stepRows,
+    models: summary.models.map((m) => ({
+      name: m.name,
+      label: m.label,
+      variants: m.variants.map((v) => ({
+        judgeName: v.judgeName,
+        judgeLabel: v.judgeLabel,
+        runs: v.runs,
+        stats: {
+          ...v.stats,
+          roundDistribution: new Map(v.stats.roundDistribution),
+        },
+        tokensByRound: new Map(v.tokensByRound),
+      })),
+    })),
+  };
+}
+
+export interface AppProps {
+  initialData?: RunResult[];
+  preloadedSummary?: PreloadedSummary;
+}
+
+function App({ initialData, preloadedSummary }: AppProps) {
+  const initial = (() => {
+    if (preloadedSummary) return deserializeSummary(preloadedSummary);
+    if (initialData) {
+      const result = processRunData(initialData);
+      return { ...result, stepRows: null };
+    }
+    return null;
+  })();
+
+  const [models, setModels] = useState<ModelData[]>(initial?.models ?? []);
+  const [discarded, setDiscarded] = useState(initial?.discarded ?? 0);
+  const [precomputedStepRows] = useState(initial?.stepRows ?? null);
   const [runTab, setRunTab] = useState(0);
   const [quoteTab, setQuoteTab] = useState(0);
   const [runsOpen, setRunsOpen] = useState(false);
   const [tokenChartsOpen, setTokenChartsOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initial);
   const [error, setError] = useState<string | null>(null);
+  const [fullDataLoaded, setFullDataLoaded] = useState(!!initialData);
 
   useEffect(() => {
+    if (initialData) return;
+
+    // If we have summary data, start background fetch of full data
+    // If no summary, this is the primary data load
     fetch("/results.json")
       .then((r) => {
         if (!r.ok) throw new Error(`Failed to load results: ${r.status}`);
         return r.json();
       })
       .then((data: RunResult[]) => {
-        const clean = discardErrorRuns(data);
-        setDiscarded(data.length - clean.length);
-        const byExecutorAndJudge = groupByExecutorAndJudge(clean);
-        const modelData: ModelData[] = [];
-        for (const executorName of MODEL_ORDER) {
-          const judgeMap = byExecutorAndJudge.get(executorName);
-          if (!judgeMap) continue;
-          const variants: JudgeVariant[] = [];
-          // Sort judges: opus first, then others in MODEL_ORDER
-          const judgeNames = [...judgeMap.keys()].sort(
-            (a, b) => JUDGE_ORDER.indexOf(a) - JUDGE_ORDER.indexOf(b),
-          );
-          for (const judgeName of judgeNames) {
-            const runs = judgeMap.get(judgeName)!;
-            variants.push({
-              judgeName,
-              judgeLabel: MODEL_LABELS[judgeName] ?? judgeName,
-              runs,
-              stats: computeStats(runs),
-              tokensByRound: computeTokensByRound(runs),
-            });
-          }
-          if (variants.length > 0) {
-            modelData.push({
-              name: executorName,
-              label: MODEL_LABELS[executorName] ?? executorName,
-              variants,
-            });
-          }
-        }
-        setModels(modelData);
+        const result = processRunData(data);
+        setModels(result.models);
+        setDiscarded(result.discarded);
+        setFullDataLoaded(true);
         setLoading(false);
       })
       .catch((e) => {
+        // If we already have summary data, swallow the error — page still works
+        if (preloadedSummary) {
+          setFullDataLoaded(false);
+          return;
+        }
         setError(e.message);
         setLoading(false);
       });
-  }, []);
+  }, [initialData, preloadedSummary]);
 
   if (loading) {
     return (
@@ -421,39 +508,43 @@ function App() {
 
       {/* Per-step cost table and summary (primary content) */}
       {(() => {
-        // Group all runs by executor model (regardless of judge)
-        const byExecutor = new Map<string, RunResult[]>();
-        const byJudge = new Map<string, RunResult[]>();
-        for (const m of models) {
-          for (const v of m.variants) {
-            if (!byExecutor.has(m.name)) byExecutor.set(m.name, []);
-            byExecutor.get(m.name)!.push(...v.runs);
-            if (!byJudge.has(v.judgeName)) byJudge.set(v.judgeName, []);
-            byJudge.get(v.judgeName)!.push(...v.runs);
+        // Use pre-computed step rows from summary, or compute from full data
+        let stepRows: { role: string; model: string; tokens: number }[];
+        if (precomputedStepRows && !fullDataLoaded) {
+          stepRows = precomputedStepRows;
+        } else {
+          const byExecutor = new Map<string, RunResult[]>();
+          const byJudge = new Map<string, RunResult[]>();
+          for (const m of models) {
+            for (const v of m.variants) {
+              if (!byExecutor.has(m.name)) byExecutor.set(m.name, []);
+              byExecutor.get(m.name)!.push(...v.runs);
+              if (!byJudge.has(v.judgeName)) byJudge.set(v.judgeName, []);
+              byJudge.get(v.judgeName)!.push(...v.runs);
+            }
           }
-        }
-
-        const stepRows: { role: string; model: string; tokens: number }[] = [];
-        for (const name of MODEL_ORDER) {
-          const execRuns = byExecutor.get(name);
-          const judgeRuns = byJudge.get(name);
-          if (execRuns) {
-            const mean = computeMeanStepTokens(execRuns);
-            if (mean.stepCount > 0)
-              stepRows.push({
-                role: "Executor",
-                model: MODEL_LABELS[name] ?? name,
-                tokens: mean.executor,
-              });
-          }
-          if (judgeRuns) {
-            const mean = computeMeanStepTokens(judgeRuns);
-            if (mean.stepCount > 0)
-              stepRows.push({
-                role: "Judge",
-                model: MODEL_LABELS[name] ?? name,
-                tokens: mean.judge,
-              });
+          stepRows = [];
+          for (const name of MODEL_ORDER) {
+            const execRuns = byExecutor.get(name);
+            const judgeRuns = byJudge.get(name);
+            if (execRuns) {
+              const mean = computeMeanStepTokens(execRuns);
+              if (mean.stepCount > 0)
+                stepRows.push({
+                  role: "Executor",
+                  model: MODEL_LABELS[name] ?? name,
+                  tokens: mean.executor,
+                });
+            }
+            if (judgeRuns) {
+              const mean = computeMeanStepTokens(judgeRuns);
+              if (mean.stepCount > 0)
+                stepRows.push({
+                  role: "Judge",
+                  model: MODEL_LABELS[name] ?? name,
+                  tokens: mean.judge,
+                });
+            }
           }
         }
 

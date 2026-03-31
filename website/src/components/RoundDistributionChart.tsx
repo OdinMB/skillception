@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import {
   ComposedChart,
   Bar,
@@ -9,6 +9,11 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts'
+
+const noop = () => () => {}
+function useHydrated() {
+  return useSyncExternalStore(noop, () => true, () => false)
+}
 
 interface Props {
   data: { round: number; [label: string]: number }[]
@@ -76,6 +81,7 @@ function CustomLegend({
 }
 
 export default function RoundDistributionChart({ data, labels, colors }: Props) {
+  const hydrated = useHydrated()
   const [hovered, setHovered] = useState<string | null>(null)
   const [locked, setLocked] = useState<string | null>(labels[0] ?? null)
 
@@ -83,6 +89,10 @@ export default function RoundDistributionChart({ data, labels, colors }: Props) 
 
   function handleClick(label: string) {
     setLocked((prev) => (prev === label ? null : label))
+  }
+
+  if (!hydrated) {
+    return <div style={{ height: 340 }} />
   }
 
   return (
