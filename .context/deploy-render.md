@@ -4,66 +4,34 @@
 
 The Skillception results website is a Vite/React static site in the `website/` directory. It fetches `results.json` at runtime from the same origin — no API server needed. Render hosts it as a **Static Site** service.
 
-The key complication: `runs/` is gitignored, so the build can't generate `results.json` on Render from raw data. Instead, `website/public/results.json` must be committed to the repo (or the `runs/` directory must be made available to the build).
+`website/public/results.json` is committed to the repo and generated locally before pushing. The `runs/` directory remains gitignored.
 
-## Option A: Commit results.json (Recommended)
+## Setup
 
-The simplest approach. Generate `results.json` locally and commit it.
+On [Render Dashboard](https://dashboard.render.com), create a new **Static Site** with these settings:
 
-### One-time setup
+| Setting              | Value                          |
+|----------------------|--------------------------------|
+| **Repository**       | Your GitHub/GitLab repo        |
+| **Branch**           | `main`                         |
+| **Root Directory**   | `website`                      |
+| **Build Command**    | `npm install && npm run build` |
+| **Publish Directory** | `dist`                        |
 
-1. Generate the data file locally:
+No environment variables are needed.
 
-   ```bash
-   python scripts/export_results.py
-   ```
-
-   This writes `website/public/results.json`.
-
-2. Remove `website/public/results.json` from `.gitignore` (it's currently listed there).
-
-3. Commit `website/public/results.json` to the repo.
-
-4. On [Render Dashboard](https://dashboard.render.com), create a new **Static Site** with these settings:
-
-   | Setting              | Value                      |
-   |----------------------|----------------------------|
-   | **Repository**       | Your GitHub/GitLab repo    |
-   | **Branch**           | `main`                     |
-   | **Root Directory**   | `website`                  |
-   | **Build Command**    | `npm install && npm run build` |
-   | **Publish Directory** | `dist`                    |
-
-5. No environment variables are needed.
-
-### Updating results
+## Updating results
 
 After running new experiments:
 
 ```bash
-python scripts/export_results.py
+npm run website:export-data
 git add website/public/results.json
 git commit -m "Update results data"
 git push
 ```
 
 Render auto-deploys on push to `main`.
-
-## Option B: Include runs/ in the repo
-
-If you want the build to generate `results.json` on Render:
-
-1. Remove `runs/` from `.gitignore` and commit the `runs/` directory.
-
-2. On Render, set the **Root Directory** to the repo root (leave blank), and use this build command:
-
-   ```bash
-   python scripts/export_results.py && cd website && npm install && npm run build
-   ```
-
-   Set **Publish Directory** to `website/dist`.
-
-3. This requires Python to be available in the Render build environment. Render's static site build image includes Python 3 by default, so this works without extra configuration.
 
 ## Render configuration file (optional)
 
@@ -95,8 +63,8 @@ After the site deploys:
 
 ## Build details
 
-- **Node version**: Render uses the version specified in `.nvmrc` or `package.json` `engines` field. The site works with Node 18+. If you need to pin it, add a `website/.nvmrc` containing `20`.
-- **Build output**: Vite produces `website/dist/` with `index.html`, hashed JS/CSS bundles, and `public/` assets (the logo PNG and, if committed, `results.json`).
+- **Node version**: Render uses the version specified in `.nvmrc` or `package.json` `engines` field. The site works with Node 20+. If you need to pin it, add a `website/.nvmrc` containing `20`.
+- **Build output**: Vite produces `website/dist/` with `index.html`, hashed JS/CSS bundles, and `public/` assets (the logo PNG and `results.json`).
 - **Cache**: Render caches `node_modules` between builds. A `package-lock.json` is already committed, so installs are deterministic.
 
 ## Verifying locally
