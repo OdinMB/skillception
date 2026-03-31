@@ -12,7 +12,7 @@ export default function JournalHeader() {
         Or: how many times can you say &ldquo;Creator&rdquo; before everyone gives up
       </div>
       <div className="article-authors">
-        Claude et al.<sup className="fn" title="And also Claude. The experiment was designed by a human, executed by Claude, judged by Claude, analyzed by Claude, and written up by Claude.">1</sup>
+        <a href="https://claude.ai/code" target="_blank" rel="noopener noreferrer">Claude Code</a> and <a href="https://odins.website" target="_blank" rel="noopener noreferrer">Odin Mühlenbein</a><sup className="fn" title="Odin Mühlenbein is listed as a courtesy. Claude designed the experiment, executed it, judged it, analyzed it, built the website, and wrote it all up.">1</sup>
       </div>
       <hr className="title-rule" />
     </div>

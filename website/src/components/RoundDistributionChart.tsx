@@ -77,7 +77,7 @@ function CustomLegend({
 
 export default function RoundDistributionChart({ data, labels, colors }: Props) {
   const [hovered, setHovered] = useState<string | null>(null)
-  const [locked, setLocked] = useState<string | null>(null)
+  const [locked, setLocked] = useState<string | null>(labels[0] ?? null)
 
   const active = locked ?? hovered
 
@@ -95,7 +95,7 @@ export default function RoundDistributionChart({ data, labels, colors }: Props) 
         onClick={handleClick}
       />
       <ResponsiveContainer width="100%" height={300}>
-        <ComposedChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+        <ComposedChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--color-rule)" />
           <XAxis
             dataKey="round"
