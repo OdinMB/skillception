@@ -59,16 +59,16 @@ body {
   margin: 0 auto;
   background: var(--color-paper);
   min-height: 100vh;
-  padding: 60px 72px 80px;
+  padding: 60px 72px 40px;
   box-shadow: 0 0 40px rgba(0,0,0,0.06);
 }
 
 @media (max-width: 800px) {
-  .page { padding: 32px 16px 48px; }
+  .page { padding: 32px 16px 28px; }
 }
 
 @media (max-width: 600px) {
-  .page { padding: 24px 12px 40px; }
+  .page { padding: 24px 12px 20px; }
 
   .article-title {
     font-size: 32px;
@@ -119,6 +119,28 @@ body {
   font-size: 14px;
   color: var(--color-footnote);
   margin-bottom: 8px;
+}
+
+.article-authors a {
+  color: var(--color-blue);
+  text-decoration: underline;
+  text-decoration-color: var(--color-rule);
+  text-underline-offset: 2px;
+}
+
+.article-authors a:hover {
+  text-decoration-color: var(--color-blue);
+}
+
+.page a {
+  color: var(--color-blue);
+  text-decoration: underline;
+  text-decoration-color: var(--color-rule);
+  text-underline-offset: 2px;
+}
+
+.page a:hover {
+  text-decoration-color: var(--color-blue);
 }
 
 hr.title-rule {
