@@ -51,19 +51,23 @@ Each step invokes `claude -p` twice as a subprocess — once for the executor, o
 | `agents/judge.md`            | Prompt template for the blind judge                                            |
 | `scripts/run_experiment.py`  | Main harness — orchestrates subprocesses, manages the round loop, logs results |
 | `scripts/analyze_results.py` | Reads result JSONs, prints aggregate statistics                                |
+| `scripts/export_results.py`  | Exports cleaned result data for the website                                    |
+| `scripts/result_schema.py`   | JSON schema validation for result files                                        |
+| `website/`                   | React/TS/Vite/Tailwind results site — live at [skillception.study](https://skillception.study) |
 
 ## 3. Results
 
-Preliminary findings from 2 independent runs:
+Findings from 57 valid runs across three executor/judge model pairs (8 additional runs discarded for process errors):
 
-| Run        | Max Round | Steps | Peak Level | Failure Point                   |
-| ---------- | --------- | ----- | ---------- | ------------------------------- |
-| `1e5a8c86` | 3         | 9     | 4          | — (clean exit)                  |
-| `d047e34d` | 6         | 31    | 8          | Round 7 descent, executor error |
+| Model   | Runs | Completed (9/9) | Mean Round | Median | Max |
+| ------- | ---- | ---------------- | ---------- | ------ | --- |
+| Opus    | 5    | 5 (100%)         | 9.0        | 9      | 9   |
+| Sonnet  | 10   | 3 (30%)          | 7.5        | 8      | 9   |
+| Haiku   | 42   | 0 (0%)           | 3.1        | 3      | 8   |
 
-Run `d047e34d` achieved meta-level 8 — a _Skill Creator Creator Creator Creator Creator Creator Creator Creator_ — before the executor process failed during descent at step 30.<sup>4</sup>
+Opus maintained perfect coherence across all meta-levels in every run — ascending to level 10 and descending back without a single mismatch. Sonnet held together through the high rounds but occasionally lost the thread on descent. Haiku demonstrated that even a small model can, on a good day, reach meta-level 8, but its median suggests level 3 is more its comfort zone.<sup>4</sup>
 
-The judge maintained correct meta-level detection across all 40 evaluated steps, including cases where the generated skill contained internal contradictions between its objective and its self-validation steps. Each round adds one level: round 1 goes from level 1 to level 2, round 9 would generate a level-10 skill creator.
+The judge maintained correct meta-level detection across the vast majority of evaluated steps, including cases where the generated skill contained internal contradictions between its objective and its self-validation steps. Each round adds one level: round 1 goes from level 1 to level 2, round 9 generates a level-10 skill creator.
 
 ## 4. Running the Experiment
 
@@ -71,12 +75,19 @@ The judge maintained correct meta-level detection across all 40 evaluated steps,
 python scripts/run_experiment.py
 ```
 
-Each run creates a subdirectory under `runs/` containing `result.json` and `skills/` with generated SKILL.md files organized by step index. The `runs/` directory is gitignored.
+Each run creates a subdirectory under `runs/` containing `result.json` and `skills/` with generated SKILL.md files organized by step index.
 
 To view aggregate statistics:
 
 ```bash
 python scripts/analyze_results.py
+```
+
+To update the website with new run data:
+
+```bash
+npm run website:export-data   # regenerates website/public/results.json
+npm run website:dev           # preview locally
 ```
 
 ## 5. References
@@ -94,4 +105,4 @@ python scripts/analyze_results.py
 
 <sup>3</sup> Not a registered Claude Code agent — just plain Markdown read by the Python harness. The distinction matters to approximately one person, and that person is the harness.
 
-<sup>4</sup> We counted the "Creator"s three times to be sure.
+<sup>4</sup> We did not ask Haiku how it felt about this.
