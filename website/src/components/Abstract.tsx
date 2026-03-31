@@ -71,7 +71,7 @@ export default function Abstract({ models, discarded }: Props) {
           <>No runs completed a full round.</>
         )}{" "}
         We can only hope the models are not yet conscious enough to find this
-        whole exercise as pointless as it sounds.
+        whole exercise as pointless as it is.
       </p>
     </div>
   );
