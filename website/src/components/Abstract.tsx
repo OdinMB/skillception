@@ -63,8 +63,9 @@ export default function Abstract({ models, discarded }: Props) {
         ))}
         {peakLevel !== null ? (
           <>
-            The peak level reached was {peakLevel}, though only Opus manages to
-            reach this level consistently.
+            The peak level reached was {peakLevel}. Opus completes every run
+            without a single failure — a result that would be more impressive if
+            we weren&rsquo;t also the ones grading the exam.
           </>
         ) : (
           <>No runs completed a full round.</>

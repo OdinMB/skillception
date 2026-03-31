@@ -19,6 +19,7 @@ interface Props {
   data: { round: number; [label: string]: number }[]
   labels: string[]
   colors: string[]
+  defaultActive?: string
 }
 
 function CustomLegend({
@@ -80,10 +81,10 @@ function CustomLegend({
   )
 }
 
-export default function RoundDistributionChart({ data, labels, colors }: Props) {
+export default function RoundDistributionChart({ data, labels, colors, defaultActive }: Props) {
   const hydrated = useHydrated()
   const [hovered, setHovered] = useState<string | null>(null)
-  const [locked, setLocked] = useState<string | null>(labels[0] ?? null)
+  const [locked, setLocked] = useState<string | null>(defaultActive ?? labels[0] ?? null)
 
   const active = locked ?? hovered
 

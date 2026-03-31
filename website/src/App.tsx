@@ -134,7 +134,13 @@ function App({ initialData, preloadedSummary }: AppProps) {
   const [models, setModels] = useState<ModelData[]>(initial?.models ?? []);
   const [discarded, setDiscarded] = useState(initial?.discarded ?? 0);
   const [precomputedStepRows] = useState(initial?.stepRows ?? null);
-  const [runTab, setRunTab] = useState(0);
+  const [runTab, setRunTab] = useState(() => {
+    const items = (initial?.models ?? []).flatMap((m) =>
+      m.variants.map(() => ({ model: m })),
+    );
+    const idx = items.findIndex((item) => item.model.name === "sonnet");
+    return idx >= 0 ? idx : 0;
+  });
   const [quoteTab, setQuoteTab] = useState(0);
   const [runsOpen, setRunsOpen] = useState(false);
   const [tokenChartsOpen, setTokenChartsOpen] = useState(false);
@@ -278,10 +284,12 @@ function App({ initialData, preloadedSummary }: AppProps) {
         <span className="section-number">1.</span> Round Distributions
       </h2>
       <p>
-        Figure 2 presents the distribution of maximum rounds reached by each
-        model tier. Each round consists of an ascent to a new peak meta-level
-        followed by a full descent back to level 1. Every step involves the
-        executor generating a skill and the judge blindly evaluating it:
+        Figure 2 presents the distribution of maximum rounds reached across
+        model tiers. Opus completed all 9 rounds in every run and is excluded
+        from the chart for being, statistically speaking, uninteresting. Each
+        round consists of an ascent to a new peak meta-level followed by a full
+        descent back to level 1. Every step involves the executor generating a
+        skill and the judge blindly evaluating it:
       </p>
 
       <div className="figure figure--borderless">
@@ -298,7 +306,8 @@ function App({ initialData, preloadedSummary }: AppProps) {
       </div>
 
       {(() => {
-        const allVariants = models.flatMap((m) =>
+        const chartModels = models.filter((m) => m.name !== "opus");
+        const allVariants = chartModels.flatMap((m) =>
           m.variants.map((v) => ({
             label: `${m.label} (N=${v.stats.totalRuns})`,
             color: MODEL_COLORS[m.name] ?? "var(--color-footnote)",
@@ -308,6 +317,9 @@ function App({ initialData, preloadedSummary }: AppProps) {
         const labels = allVariants.map((v) => v.label);
         const colors = allVariants.map((v) => v.color);
         const data = buildGroupedRoundData(allVariants);
+        const sonnetLabel = allVariants.find((v) =>
+          v.label.startsWith("Sonnet"),
+        )?.label;
         return (
           <div
             className="figure figure--borderless"
@@ -318,13 +330,15 @@ function App({ initialData, preloadedSummary }: AppProps) {
                 data={data}
                 labels={labels}
                 colors={colors}
+                defaultActive={sonnetLabel}
               />
             </div>
             <div className="figure-caption">
               <span className="fig-label">Figure 2:</span> Share of runs by
               last completed round. A run is assigned to round <em>N</em> if it
               completed round <em>N</em> successfully and then failed during
-              round <em>N</em>+1 (or finished the experiment). Round 9
+              round <em>N</em>+1 (or finished the experiment). Opus is omitted:
+              every Opus run completed all 9 rounds without failure. Round 9
               completion indicates a full ascent to level 10 and descent back to
               level 1.
             </div>
@@ -345,7 +359,11 @@ function App({ initialData, preloadedSummary }: AppProps) {
         drifted from the target abstraction, or the judge may have misread the
         output, or both. Same-tier pairings (e.g. Sonnet/Sonnet) test whether
         the model can stay semantically consistent with itself across deepening
-        recursion layers.
+        recursion layers. Opus, notably, records a 0% failure rate across all
+        steps and directions — navigating every meta-level with the serene
+        confidence of someone who has never once been asked to explain what
+        a &ldquo;Skill Creator Creator Creator Creator Creator&rdquo; is
+        supposed to do.
       </p>
 
       <div className="figure">
