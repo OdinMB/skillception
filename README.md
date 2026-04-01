@@ -103,6 +103,6 @@ npm run website:dev           # preview locally
 
 <sup>2</sup> "Blind" in the sense that the judge has no knowledge of the expected level. It does, however, have access to the full text of the skill, which at level 8 is roughly the length of a short novel.
 
-<sup>3</sup> Not a registered Claude Code agent — just plain Markdown read by the Python harness. The distinction matters to approximately one person, and that person is the harness.
+<sup>3</sup> Not a registered Claude Code agent — just plain Markdown read by the Python harness. If you call it an "agent" in a pull request, the harness will not correct you, but it will judge you silently.
 
 <sup>4</sup> We did not ask Haiku how it felt about this.
