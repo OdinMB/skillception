@@ -690,3 +690,44 @@ td.fail {
   object-fit: cover;
   border: 2px solid var(--color-rule);
 }
+
+/* === Version cross-link bar === */
+.version-bar {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--color-footnote);
+  text-align: center;
+  padding: 6px 0;
+  background: var(--color-aged);
+}
+
+.version-bar a {
+  color: var(--color-blue);
+  text-decoration: underline;
+  text-decoration-color: var(--color-rule);
+  text-underline-offset: 2px;
+}
+
+.version-bar a:hover {
+  text-decoration-color: var(--color-blue);
+}
+
+/* === Print === */
+@media print {
+  .print-only { display: none; }
+  body { background: white; }
+  .page {
+    background: white;
+    box-shadow: none;
+    padding: 0;
+    max-width: none;
+  }
+  .abstract { background: white; }
+  .bar-track, .token-track { background: #eee; }
+  .run-header { background: white; }
+
+  /* Avoid orphaned headings and split figures/tables */
+  h2, h3, h4 { break-after: avoid; }
+  .figure, .judge-quote, table { break-inside: avoid; }
+  .figure-caption { break-before: avoid; }
+}

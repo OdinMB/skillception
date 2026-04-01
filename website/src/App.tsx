@@ -124,6 +124,10 @@ export interface AppProps {
 }
 
 function App({ initialData, preloadedSummary }: AppProps) {
+  const printMode =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).has("print");
+
   const initial = (() => {
     if (preloadedSummary) return deserializeSummary(preloadedSummary);
     if (initialData) {
@@ -271,6 +275,18 @@ function App({ initialData, preloadedSummary }: AppProps) {
 
   return (
     <>
+      {printMode ? (
+        <div className="version-bar print-only">
+          Interactive version at{" "}
+          <a href={window.location.pathname}>
+            {window.location.host}
+          </a>
+        </div>
+      ) : (
+        <div className="version-bar">
+          <a href="?print">Print version</a>
+        </div>
+      )}
       <div className="page">
         <JournalHeader />
 
@@ -420,6 +436,39 @@ function App({ initialData, preloadedSummary }: AppProps) {
               .map((v) => ({ model: m, variant: v })),
           );
           if (quoteVariants.length === 0) return null;
+
+          if (printMode) {
+            return (
+              <>
+                <h3>Sample failures as described by the judge</h3>
+                {quoteVariants.map((item) => {
+                  const quotes = pickFailureQuotes(item.variant.runs, 2);
+                  return (
+                    <div key={`${item.model.name}-${item.variant.judgeName}`}>
+                      <h4>
+                        {variantLabel(
+                          item.model.name,
+                          item.model.label,
+                          item.variant.judgeName,
+                          item.variant.judgeLabel,
+                        )}
+                      </h4>
+                      {quotes.map((q) => (
+                        <div className="judge-quote" key={q.run.run_id}>
+                          &ldquo;{q.reasoning}&rdquo;
+                          <div className="attribution">
+                            &mdash; {item.variant.judgeLabel} judge,{" "}
+                            {q.description}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </>
+            );
+          }
+
           const safeQuoteTab = quoteTab < quoteVariants.length ? quoteTab : 0;
           const activeQuote = quoteVariants[safeQuoteTab];
           const quotes = activeQuote
@@ -458,60 +507,66 @@ function App({ initialData, preloadedSummary }: AppProps) {
         })()}
 
         {/* Run details (expandable, no separate section heading) */}
-        <div
-          className="run-detail"
-          style={{ cursor: "pointer", marginTop: "24px" }}
-        >
-          <div
-            className="run-header"
-            onClick={() => setRunsOpen(!runsOpen)}
-            style={{ justifyContent: "center", gap: "8px" }}
-          >
-            <span style={{ color: "var(--color-footnote)" }}>
-              {runsOpen ? "Collapse" : "Expand"} individual run details with
-              full judge evaluations
-            </span>
-            <span style={{ fontSize: "10px", color: "var(--color-caption)" }}>
-              {runsOpen ? "\u25BC" : "\u25B6"}
-            </span>
-          </div>
-        </div>
-
-        {runsOpen && (
+        {!printMode && (
           <>
-            {detailUnavailable && (
-              <p
-                style={{
-                  fontStyle: "italic",
-                  color: "var(--color-footnote)",
-                  fontSize: "14px",
-                  textAlign: "center",
-                }}
+            <div
+              className="run-detail"
+              style={{ cursor: "pointer", marginTop: "24px" }}
+            >
+              <div
+                className="run-header"
+                onClick={() => setRunsOpen(!runsOpen)}
+                style={{ justifyContent: "center", gap: "8px" }}
               >
-                Detailed run data could not be loaded. Summary statistics above
-                are unaffected.
-              </p>
-            )}
-            <div className="model-tabs">
-              {runTabItems.map((item, i) => (
-                <button
-                  key={`${item.model.name}-${item.variant.judgeName}`}
-                  className={`model-tab ${i === safeRunTab ? "active" : ""}`}
-                  onClick={() => setRunTab(i)}
+                <span style={{ color: "var(--color-footnote)" }}>
+                  {runsOpen ? "Collapse" : "Expand"} individual run details with
+                  full judge evaluations
+                </span>
+                <span
+                  style={{ fontSize: "10px", color: "var(--color-caption)" }}
                 >
-                  {item.model.label}
-                  {item.model.name === item.variant.judgeName
-                    ? " (self)"
-                    : ` \u00d7 ${item.variant.judgeLabel}`}{" "}
-                  ({item.variant.stats.totalRuns})
-                </button>
-              ))}
+                  {runsOpen ? "\u25BC" : "\u25B6"}
+                </span>
+              </div>
             </div>
 
-            {activeRunItem && (
-              <div style={{ marginTop: "16px" }}>
-                <RunOverview runs={activeRunItem.variant.runs} />
-              </div>
+            {runsOpen && (
+              <>
+                {detailUnavailable && (
+                  <p
+                    style={{
+                      fontStyle: "italic",
+                      color: "var(--color-footnote)",
+                      fontSize: "14px",
+                      textAlign: "center",
+                    }}
+                  >
+                    Detailed run data could not be loaded. Summary statistics
+                    above are unaffected.
+                  </p>
+                )}
+                <div className="model-tabs">
+                  {runTabItems.map((item, i) => (
+                    <button
+                      key={`${item.model.name}-${item.variant.judgeName}`}
+                      className={`model-tab ${i === safeRunTab ? "active" : ""}`}
+                      onClick={() => setRunTab(i)}
+                    >
+                      {item.model.label}
+                      {item.model.name === item.variant.judgeName
+                        ? " (self)"
+                        : ` \u00d7 ${item.variant.judgeLabel}`}{" "}
+                      ({item.variant.stats.totalRuns})
+                    </button>
+                  ))}
+                </div>
+
+                {activeRunItem && (
+                  <div style={{ marginTop: "16px" }}>
+                    <RunOverview runs={activeRunItem.variant.runs} />
+                  </div>
+                )}
+              </>
             )}
           </>
         )}
@@ -617,23 +672,27 @@ function App({ initialData, preloadedSummary }: AppProps) {
         })()}
 
         {/* Per-round token charts (collapsible) */}
-        <div className="run-detail" style={{ cursor: "pointer" }}>
-          <div
-            className="run-header"
-            onClick={() => setTokenChartsOpen(!tokenChartsOpen)}
-            style={{ justifyContent: "center", gap: "8px" }}
-          >
-            <span style={{ color: "var(--color-footnote)" }}>
-              {tokenChartsOpen ? "Collapse" : "Expand"} per-round token
-              breakdown
-            </span>
-            <span style={{ fontSize: "10px", color: "var(--color-caption)" }}>
-              {tokenChartsOpen ? "\u25BC" : "\u25B6"}
-            </span>
+        {!printMode && (
+          <div className="run-detail" style={{ cursor: "pointer" }}>
+            <div
+              className="run-header"
+              onClick={() => setTokenChartsOpen(!tokenChartsOpen)}
+              style={{ justifyContent: "center", gap: "8px" }}
+            >
+              <span style={{ color: "var(--color-footnote)" }}>
+                {tokenChartsOpen ? "Collapse" : "Expand"} per-round token
+                breakdown
+              </span>
+              <span
+                style={{ fontSize: "10px", color: "var(--color-caption)" }}
+              >
+                {tokenChartsOpen ? "\u25BC" : "\u25B6"}
+              </span>
+            </div>
           </div>
-        </div>
+        )}
 
-        {tokenChartsOpen && (
+        {tokenChartsOpen && !printMode && (
           <>
             <p>
               Figure 3 shows the mean token consumption per completed round for
@@ -713,15 +772,28 @@ function App({ initialData, preloadedSummary }: AppProps) {
         <h2>
           <span className="section-number">4.</span> Sample Skills
         </h2>
-        <p>
-          For the reader who has made it this far and still wonders what a
-          level-8 &ldquo;Skill Creator Creator Creator Creator Creator Creator
-          Creator Creator&rdquo; actually looks like: below are three
-          representative SKILL.md files, selected to show different recursion
-          levels and ascent/descent directions.
-        </p>
+        {printMode ? (
+          <p>
+            <em>
+              Three representative SKILL.md files (levels 2, 5, and 8) are
+              available in the interactive version at{" "}
+              <a href="https://skillception.study">skillception.study</a>.
+              They are omitted here for brevity.
+            </em>
+          </p>
+        ) : (
+          <>
+            <p>
+              For the reader who has made it this far and still wonders what a
+              level-8 &ldquo;Skill Creator Creator Creator Creator Creator
+              Creator Creator Creator&rdquo; actually looks like: below are
+              three representative SKILL.md files, selected to show different
+              recursion levels and ascent/descent directions.
+            </p>
 
-        <SampleSkills />
+            <SampleSkills />
+          </>
+        )}
 
         {/* Open Source */}
         <h2>
@@ -815,7 +887,7 @@ function App({ initialData, preloadedSummary }: AppProps) {
         </div>
       </div>
 
-      <Footer />
+      {!printMode && <Footer />}
     </>
   );
 }
