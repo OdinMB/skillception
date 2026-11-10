@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import SimpleAnalyticsCredit from "./SimpleAnalyticsCredit";
 
 /** Obfuscate email to deter scrapers */
 function obfuscatedEmail(user: string, domain: string) {
@@ -316,6 +317,8 @@ export default function Footer() {
         >
           Send me a coffee
         </a>
+        <span className="footer-sep">&middot;</span>
+        <SimpleAnalyticsCredit />
       </footer>
 
       <Modal open={modal === "impressum"} onClose={closeModal}>
